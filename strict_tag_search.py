@@ -1,23 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""Grouped tag search on author.today.
-
-Site behaviour: multiple `tags=` params are joined with OR (a book matches if
-it has *any* of the tags). This script adds grouping logic:
-
-  * within one CLI argument, tags separated by comma are ALTERNATIVES (OR)
-  * between CLI arguments the logic is STRICT (AND)
-
-A book is returned only if it satisfies every group.
-
-By default only finished ebooks are kept (no audio books, no in-progress).
-Use --any-state / --with-audio to relax those filters.
-
-Usage:
-    python strict_tag_search.py "гарем,гаремник" "марвел11,марвел 11"
-    python strict_tag_search.py --max-pages 5 "гарем" "эротика"
-"""
-
 import argparse
 import html
 import re
@@ -45,12 +25,6 @@ def fetch(url, session, retries=3):
 
 
 def collect_works_for_tag(tags, session, max_pages, delay, only_finished, only_ebooks):
-    """Return (id_set, meta:{id:(kind,title)}) for a single query.
-
-    tags: list of tags — each becomes its own `tags=` param on the SAME
-    request, exactly like the site's search UI does it (they're the "all
-    these tags" filter). Page-count then matches the site's own number.
-    """
     ids = set()
     meta = {}
     total = None
@@ -71,16 +45,14 @@ def collect_works_for_tag(tags, session, max_pages, delay, only_finished, only_e
         url = f"{BASE}/search?" + "&".join(params)
         text = fetch(url, session)
 
-        # server-side total shown by the site ("Результатов: N")
         if page == 1:
             m = re.search(r'Результатов:\s*([\d\s]+)', text)
             if m:
                 total = int(m.group(1).replace(" ", ""))
 
-        # split into cards; each card contains either work or audiobook href twice
         rows = text.split('<div class="book-row">')[1:]
         if not rows:
-            break  # no more results on this page
+            break
 
         found_any = False
         for row in rows:
@@ -102,8 +74,6 @@ def collect_works_for_tag(tags, session, max_pages, delay, only_finished, only_e
         if page % 5 == 0:
             sys.stderr.write(f"  [{label}] страница {page}, уникальных: {len(ids)}\n")
 
-        # pagination: continue if a link to (page+1) exists;
-        # stop early once collected as many unique books as the server total
         if total is not None and len(ids) >= total:
             truncated = False
             break
@@ -123,7 +93,6 @@ def collect_works_for_tag(tags, session, max_pages, delay, only_finished, only_e
 
 
 def split_groups(args_tags):
-    """Each CLI argument is a group: alternatives split by comma (OR)."""
     groups = []
     for raw in args_tags:
         alts = [a.strip() for a in raw.split(",") if a.strip()]
@@ -134,7 +103,6 @@ def split_groups(args_tags):
 
 
 def parse_cookie_string(cookie_str, session):
-    """Parse 'name=value; name2=value2' into session cookies."""
     for part in cookie_str.split(";"):
         part = part.strip()
         if not part or "=" not in part:
@@ -145,7 +113,6 @@ def parse_cookie_string(cookie_str, session):
 
 
 def load_cookies_from_file(path, session):
-    """Load cookies from a Netscape-format cookies.txt (curl/wget)."""
     with open(path, "r", encoding="utf-8", errors="replace") as fh:
         for line in fh:
             line = line.strip()
@@ -161,7 +128,6 @@ def load_cookies_from_file(path, session):
 
 
 def login(session, email, password):
-    """Log in via POST /account/login (may require 2FA code on a new device)."""
     login_url = BASE + "/account/login"
     r = session.get(login_url, timeout=30)
     r.raise_for_status()
@@ -183,7 +149,6 @@ def login(session, email, password):
         sys.stderr.write(f"Вход выполнен (redirect -> {loc}).\n")
         session.get(BASE + (loc if loc.startswith("/") else "/"), timeout=30)
         return True
-    # 200: вернулась форма входа с ошибкой или кодом 2FA
     err = re.search(r'(error-messages[^>]*>[\s\S]{0,200}?<)', r.text)
     err2 = re.search(r'Неправильный|некоррект|ошибка|не найден|Заблокирован', r.text, re.IGNORECASE)
     twofa = "Введите код подтверждения" in r.text or 'name="Code"' in r.text
@@ -199,9 +164,7 @@ def login(session, email, password):
 
 
 def is_logged_in(session):
-    """True if session is authenticated (check for user-only markers)."""
     text = fetch(BASE + "/", session)
-    # аноним видит 'Войти' / кнопку регистрации в шапке; залогиненный — нет
     return ("Войти" not in text
             and "/account/register" not in text
             and "Моя библиотека" in text)
@@ -260,7 +223,6 @@ def main():
         except Exception as e:
             sys.stderr.write(f"Предупреждение: не удалось проверить сессию: {e}\n")
 
-    # per group: one request with all its tags; then strict AND between groups
     group_sets = []
     group_totals = {}
     meta = {}
