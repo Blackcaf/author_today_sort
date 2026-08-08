@@ -43,7 +43,7 @@ This script closes all three gaps:
 
 ---
 
-## Installation 📦
+## Installation
 
 Python 3.8+ required (tested on 3.14 too).
 
@@ -199,4 +199,4 @@ author_today_sort/
 ## License
 
 Licensed under the **Apache License 2.0** (see [LICENSE](LICENSE)).
-© 2026 NLSHAKAL (Daniil). Use it responsibly and respect the site. 🙌
+© 2026 Blackcaf. Use it responsibly and respect the site.
