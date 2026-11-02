@@ -62,9 +62,18 @@
         </div>
 
         <form id="search-form">
+          <section class="filter-section profile-field">
+            <label class="field-title" for="username">Профиль Author.Today</label>
+            <div class="input-wrap profile-input-wrap">
+              <span class="input-leading" aria-hidden="true">@</span>
+              <input id="username" name="username" type="text" autocomplete="off" spellcheck="false" value="daniilmantus" placeholder="Логин профиля…" required>
+            </div>
+            <p class="field-help">Имя профиля, с которого будут загружены списки библиотеки.</p>
+          </section>
+          <div class="section-divider"></div>
           <section class="filter-section">
             <div class="field-heading">
-              <label class="field-title" for="tags-groups">Теги</label>
+              <span class="field-title">Теги</span>
               <span class="field-hint">Можно несколько</span>
             </div>
             <div id="tags-groups" class="groups-list"></div>
@@ -76,7 +85,7 @@
 
           <section class="filter-section">
             <div class="field-heading">
-              <label class="field-title" for="genres-groups">Жанры</label>
+              <span class="field-title">Жанры</span>
               <span class="field-hint">С подсказками</span>
             </div>
             <div id="genres-groups" class="groups-list"></div>
