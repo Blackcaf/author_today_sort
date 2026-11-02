@@ -61,7 +61,7 @@ class AutocompleteSourceTests(unittest.TestCase):
         )
 
     def test_tag_suggestions_use_local_catalog(self):
-        catalog = ["система", "система и уровни", "игровая система"]
+        catalog = ["система", "игровая система", "система и уровни"]
         with patch("webapp._load_tag_catalog", return_value=catalog):
             result = tag_suggestions("сист")
 
