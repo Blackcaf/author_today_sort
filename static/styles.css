@@ -63,7 +63,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 }
 .brand-mark svg { width: 29px; height: 29px; fill: none; stroke: #203126; stroke-width: 1.55; stroke-linecap: round; stroke-linejoin: round; }
 .brand-copy { display: flex; flex-direction: column; gap: 2px; }
-.brand-copy strong { font-family: Manrope, sans-serif; letter-spacing: -.045em; font-size: 18px; font-weight: 800; }
+.brand-copy strong { font-family: Inter, ui-sans-serif, sans-serif; letter-spacing: -.045em; font-size: 18px; font-weight: 800; }
 .brand-copy strong span { color: var(--accent); }
 .brand-copy small { color: var(--muted); font-size: 10px; letter-spacing: .02em; }
 .topbar-right { display: flex; align-items: center; gap: 25px; }
