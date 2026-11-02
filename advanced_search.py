@@ -354,6 +354,7 @@ class AuthorTodayClient:
             path = "/work/genre" if page == 1 else f"/work/genre?page={page}"
             html = self.get(path)
             cards = parse_result_cards(html)
+            self.work_kinds.update({work_id: data.get("kind", "work") for work_id, data in cards.items()})
             result.update(cards)
             soup = BeautifulSoup(html, "html.parser")
             self.log(f"Все произведения: страница {page}, найдено ID: {len(result)}")
