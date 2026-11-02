@@ -95,4 +95,31 @@ jobs:
                               print("  SNIP", snippet[:500])
               except Exception as exc:
                   print("EDIT_JS_ERROR", src, repr(exc))
+
+          preload_urls = [urljoin("https://author.today", n.get("href", "")) for n in edit_soup.select('link[rel="modulepreload"][href]')]
+          print("MODULE_PRELOADS", len(preload_urls), preload_urls[:40])
+          url_list = list(dict.fromkeys(preload_urls + edit_scripts))
+          for src in url_list[:45]:
+              if "/_nuxt/" not in src:
+                  continue
+              try:
+                  response = s.get(src, timeout=18)
+                  body = response.text
+                  found = []
+                  for pattern in [
+                      r"/api/[^\\\"' ]{0,120}",
+                      r"(?:tag|tags)[^\\\"' ]{0,80}(?:search|suggest|query|autocomplete|api)",
+                      r"(?:search|suggest|query|autocomplete|api)[^\\\"' ]{0,80}(?:tag|tags)",
+                      r"select-tag",
+                  ]:
+                      for match in list(re.finditer(pattern, body, re.I))[:12]:
+                          start = max(0, match.start()-100)
+                          end = min(len(body), match.end()+180)
+                          found.append(re.sub(r"\\s+", " ", body[start:end])[:400])
+                  if found:
+                      print("NUXT_CHUNK", src, response.status_code, len(body))
+                      for item in found[:16]:
+                          print("  API_SNIP", item)
+              except Exception as exc:
+                  print("NUXT_CHUNK_ERROR", src, repr(exc))
           PY
