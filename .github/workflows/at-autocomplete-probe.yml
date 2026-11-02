@@ -124,4 +124,30 @@ jobs:
                           print("  SNIP", re.sub(r"\\s+", " ", body[start:end])[:650])
               except Exception as exc:
                   print("NUXT_CHUNK_ERROR", src, repr(exc))
+
+          from advanced_search import AuthorTodayClient, parse_result_cards
+          print("TAG FILTER ENDPOINT PROBE")
+          client = AuthorTodayClient(delay=0.0)
+          try:
+              for path in [
+                  "/search?tags=система",
+                  "/search?tags=сист",
+                  "/search?q=&tags=система",
+                  "/work/tag/система",
+                  "/work/tag/система?sorting=recent",
+                  "/work/tag/система?page=1",
+                  "/work/genre/all/ebook",
+              ]:
+                  try:
+                      html = client.get(path)
+                      sp = BeautifulSoup(html, "html.parser")
+                      cards = parse_result_cards(html)
+                      print("TAG_PROBE", path, "TITLE", sp.title.get_text(" ", strip=True) if sp.title else "", "CARDS", len(cards), "IDS", list(cards)[:5])
+                      for work_id, card in list(cards.items())[:2]:
+                          info = client.get_work_detail(work_id, card.get("kind", "work"), refresh_if_no_tags=True)
+                          print("  CARD_TAGS", work_id, info.title, info.tags)
+                  except Exception as e:
+                      print("TAG_PROBE_ERROR", path, repr(e))
+          finally:
+              client.close()
           PY
