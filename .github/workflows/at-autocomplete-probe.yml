@@ -192,4 +192,41 @@ jobs:
                           print("  BODY", response.text[:1000].replace("\\n", " "))
                   except Exception as exc:
                       print("V2_TAGS_ERROR", url, repr(exc))
+
+          print("AUTHOR TODAY GUEST TOKEN TAGS API PROBE")
+          for suffix in [
+              "/v2/work/tags",
+              "/v2/work/tags?q=сист",
+              "/v2/work/tags?query=сист",
+              "/v2/work/tags?search=сист",
+              "/v2/work/tags?term=сист",
+              "/v2/work/tags?text=сист",
+              "/v2/work/genres",
+              "/v1/catalog/search?page=1&ps=10&genre=all&sorting=popular&form=any&state=any&series=any&access=any&dnl=any&promo=hide&upd=-1&pub=-1&length=any&fnd=false&tag=система",
+          ]:
+              url = "https://api.author.today" + suffix
+              try:
+                  response = s.get(url, headers={
+                      "Referer": "https://author.today/work/553566",
+                      "Accept": "application/json, text/plain, */*",
+                      "Authorization": "Bearer guest",
+                  }, timeout=20)
+                  print("GUEST_API", suffix, "STATUS", response.status_code, "TYPE", response.headers.get("content-type"), "LEN", len(response.content))
+                  try:
+                      payload = response.json()
+                      if isinstance(payload, dict):
+                          print("  KEYS", list(payload)[:30])
+                          for key, value in payload.items():
+                              if isinstance(value, list):
+                                  print("  LIST", key, "LEN", len(value), "SAMPLE", json.dumps(value[:5], ensure_ascii=False)[:2400])
+                              elif isinstance(value, (str, int, float, bool)) or value is None:
+                                  print("  VALUE", key, repr(value)[:300])
+                      elif isinstance(payload, list):
+                          print("  ROOT_LIST", len(payload), json.dumps(payload[:10], ensure_ascii=False)[:2400])
+                      else:
+                          print("  JSON", repr(payload)[:1000])
+                  except Exception:
+                      print("  BODY", response.text[:800].replace("\\n", " "))
+              except Exception as exc:
+                  print("GUEST_API_ERROR", suffix, repr(exc))
           PY
