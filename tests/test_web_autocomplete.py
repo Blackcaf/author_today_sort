@@ -78,14 +78,14 @@ class AutocompleteSourceTests(unittest.TestCase):
         response.json.return_value = {
             "status": "Success",
             "data": {
-                "items": [{"title": "фентези", "count": 2159}],
+                "items": [{"title": "фэнтези", "count": 2159}],
                 "totalCount": 109,
             },
         }
         with patch("webapp.requests.get", return_value=response) as get:
             result = tag_suggestions("Фэнтези")
 
-        self.assertEqual(result["tags"], ["фентези"])
+        self.assertEqual(result["tags"], ["фэнтези"])
         self.assertEqual(get.call_args.kwargs["params"], {"query": "фэнтези"})
 
 
