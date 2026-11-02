@@ -218,29 +218,6 @@
     }
   }
 
-    const row = group.entry;
-    if (!row) return;
-    row.querySelectorAll(".group-chip").forEach((chip) => chip.remove());
-    const input = group.input;
-    group.values.forEach((value, index) => {
-      const chip = document.createElement("span");
-      chip.className = "group-chip";
-      const text = document.createElement("span");
-      text.textContent = value;
-      const remove = document.createElement("button");
-      remove.type = "button";
-      remove.textContent = "×";
-      remove.setAttribute("aria-label", "Удалить " + value);
-      remove.title = "Удалить " + value;
-      remove.addEventListener("click", () => {
-        group.values.splice(index, 1);
-        renderChips(group);
-      });
-      chip.append(text, remove);
-      row.insertBefore(chip, input);
-    });
-  }
-
   function createGroup(host, kind, group, index) {
     const wrapper = document.createElement("div");
     wrapper.className = "group-row";
