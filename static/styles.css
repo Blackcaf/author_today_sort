@@ -317,3 +317,56 @@ h2 { font: 700 20px/1.25 Inter, ui-sans-serif, sans-serif; letter-spacing: -.035
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+
+/* Author.Today tag/genre autocomplete */
+.autocomplete-shell {
+  position: relative;
+  flex: 1 1 150px;
+  min-width: 130px;
+}
+.autocomplete-shell .group-input {
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+.autocomplete-list {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 8px);
+  left: -8px;
+  right: -8px;
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 5px;
+  border: 1px solid rgba(183, 216, 162, .28);
+  border-radius: 10px;
+  background: #172322;
+  box-shadow: 0 14px 32px rgba(0, 0, 0, .38);
+}
+.autocomplete-option {
+  display: block;
+  width: 100%;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #dce8de;
+  text-align: left;
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.autocomplete-option:hover,
+.autocomplete-option[aria-selected="true"] {
+  background: rgba(183, 216, 162, .13);
+  color: #d4e9c1;
+}
+.autocomplete-status {
+  padding: 9px 10px;
+  color: #91a198;
+  font-size: 10px;
+  line-height: 1.5;
+}
