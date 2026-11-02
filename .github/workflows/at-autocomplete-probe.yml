@@ -47,25 +47,30 @@ jobs:
           scripts = []
           for node in soup.select("script[src]"):
               src = urljoin("https://author.today", node.get("src", ""))
-              if src.endswith(".js") or ".js?" in src:
+              if src.endswith(".js") or ".js?" in src or "/dist/js/" in src or "/_nuxt/" in src:
                   scripts.append(src)
-          print("JS_FILES", len(scripts))
-          patterns = re.compile(r"autocomplete|tag(s)?Suggest|suggest(Tag)?|/work/tag|tags?", re.I)
+          print("JS_FILES", len(scripts), scripts)
+          patterns = [
+              re.compile(r"autocomplete|tag(s)?Suggest|suggest(Tag)?|/work/tag", re.I),
+              re.compile(r"tag.{0,80}(search|suggest|autocomplete|api)|(?:search|suggest|autocomplete|api).{0,80}tag", re.I),
+          ]
           shown = 0
           for src in scripts:
               try:
                   r = s.get(src, timeout=20)
                   body = r.text
-                  matches = list(patterns.finditer(body))
+                  matches = []
+                  for pattern in patterns:
+                      matches.extend(pattern.finditer(body))
                   if not matches:
                       continue
                   print("JS_MATCH_FILE", src, "status", r.status_code, "bytes", len(body), "matches", len(matches))
-                  for match in matches[:4]:
-                      start = max(0, match.start()-180)
-                      end = min(len(body), match.end()+280)
-                      print("  MATCH", re.sub(r"\\s+", " ", body[start:end])[:500])
+                  for match in matches[:12]:
+                      start = max(0, match.start()-220)
+                      end = min(len(body), match.end()+360)
+                      print("  MATCH", re.sub(r"\\s+", " ", body[start:end])[:650])
                   shown += 1
-                  if shown >= 8:
+                  if shown >= 12:
                       break
               except Exception as e:
                   print("JS_ERROR", src, repr(e))
