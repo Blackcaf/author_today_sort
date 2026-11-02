@@ -580,10 +580,10 @@ def run_search(
                     if info.title:
                         details.append(info)
                     else:
-                        details.append(WorkInfo(id=work_id))
+                        details.append(WorkInfo(id=work_id, kind=client.work_kinds.get(work_id, "work")))
                 except Exception as exc:
                     log(f"Не удалось прочитать карточку {work_id}: {exc}")
-                    details.append(WorkInfo(id=work_id))
+                    details.append(WorkInfo(id=work_id, kind=client.work_kinds.get(work_id, "work")))
                 if index % 25 == 0 or index == total:
                     log(f"Карточки произведений: {index}/{total}")
                 time.sleep(client.delay)
@@ -591,14 +591,14 @@ def run_search(
             if description_query.strip():
                 tokens = [token for token in normalize(description_query).split() if token]
                 before = len(details)
+                missing = sum(1 for work in details if not work.description)
                 details = [
                     work for work in details
                     if work.description and all(token in normalize(work.description) for token in tokens)
                 ]
-                missing = sum(1 for work in details if not work.description)
                 log(
-                    f"Поиск по описанию: осталось {len(details)} из {before}. "
-                    "Все введённые слова должны присутствовать в аннотации."
+                    f"Поиск по описанию: осталось {len(details)} из {before}; "
+                    f"без распознанной аннотации: {missing}. Все введённые слова должны присутствовать."
                 )
             if collapse_cycles:
                 before = len(details)
@@ -722,12 +722,13 @@ class AdvancedSearchApp:
 
         result_frame = ttk.LabelFrame(outer, text="Результаты", padding=8)
         result_frame.pack(fill="both", expand=True)
-        columns = ("title", "author", "genres", "series", "id")
+        columns = ("title", "author", "genres", "tags", "series", "id")
         self.tree = ttk.Treeview(result_frame, columns=columns, show="headings", height=15)
         headings = {
             "title": ("Произведение", 350),
             "author": ("Автор", 170),
-            "genres": ("Жанры", 300),
+            "genres": ("Жанры", 240),
+            "tags": ("Теги", 300),
             "series": ("Цикл", 220),
             "id": ("ID", 75),
         }
@@ -830,6 +831,7 @@ class AdvancedSearchApp:
                                 work.title or f"Произведение {work.id}",
                                 work.author,
                                 ", ".join(work.genres or []),
+                                ", ".join(work.tags or []),
                                 series,
                                 work.id,
                             ),
