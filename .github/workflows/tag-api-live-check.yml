@@ -1,0 +1,34 @@
+name: Temporary tag autocomplete live check
+
+on:
+  pull_request:
+    branches: ["master"]
+
+jobs:
+  live-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Verify real Author.Today tag suggestions
+        run: |
+          python - <<'PY'
+          from webapp import _fetch_official_tag_suggestions
+
+          cases = {
+              "сист": "система",
+              "фентези": "фентези",
+              "попадан": "попаданцы",
+          }
+          for query, expected in cases.items():
+              tags = _fetch_official_tag_suggestions(query)
+              print(f"{query!r}: {tags}")
+              assert any(expected in tag.casefold() for tag in tags), (
+                  f"{expected!r} was not returned for {query!r}"
+              )
+          print("All real API checks passed.")
+          PY
