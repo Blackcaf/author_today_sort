@@ -45,6 +45,16 @@ class SearchLogicTests(unittest.TestCase):
         result = apply_cycle_rule(works)
         self.assertEqual({work.id for work in result}, {"102", "103"})
 
+    def test_work_page_parser_finds_tags_after_annotation(self):
+        page = """
+        <h1>Part One</h1>
+        <a href="#annotation">Аннотация</a>
+        <div id="annotation">A sufficiently long annotation about a hero and magic.</div>
+        <footer><a href="/work/tag/sistema">система</a></footer>
+        """
+        info = AuthorTodayClient.parse_work_detail("556", "work", page)
+        self.assertEqual(info.tags, ["система"])
+
     def test_work_page_parser_reads_cycle_genres_tags_and_annotation(self):
         page = """
         <h1>Part One</h1>
