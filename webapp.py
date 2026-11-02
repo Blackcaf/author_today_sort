@@ -27,7 +27,9 @@ AUTHOR_TODAY_TAGS_API = "https://api.author.today/v2/work/tags"
 AUTHOR_TODAY_GUEST_HEADERS = {
     "Authorization": "Bearer guest",
     "Accept": "application/json",
+    "Accept-Language": "ru,en;q=0.9",
     "Referer": "https://author.today/",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0 Safari/537.36",
 }
 
 app = FastAPI(
