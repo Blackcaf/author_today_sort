@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101a1c">
+  <meta name="description" content="Расширенный поиск произведений на Author.Today по жанрам, тегам и описанию.">
+  <title>Author.Today Search — умный поиск книг</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Перейти к поиску</a>
+  <div class="ambient ambient-one" aria-hidden="true"></div>
+  <div class="ambient ambient-two" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="Author.Today Search — на главную">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 32 32" role="img">
+          <path d="M5.5 7.5c4.4-.9 8-.1 10.5 2.1 2.5-2.2 6.1-3 10.5-2.1v17c-4.4-.9-8-.1-10.5 2.1-2.5-2.2-6.1-3-10.5-2.1z"/>
+          <path d="M16 9.6v17"/>
+          <path d="M9 12.1c1.8-.2 3.5.1 4.9.8M9 16c1.8-.2 3.5.1 4.9.8M23 12.1c-1.8-.2-3.5.1-4.9.8M23 16c-1.8-.2-3.5.1-4.9.8"/>
+        </svg>
+      </span>
+      <span class="brand-copy">
+        <strong>story<span>finder</span></strong>
+        <small>расширенный поиск Author.Today</small>
+      </span>
+    </a>
+    <div class="topbar-right">
+      <span class="local-pill"><span class="status-dot"></span> Работает локально</span>
+      <a class="top-link" href="https://author.today" target="_blank" rel="noopener noreferrer">Author.Today <span aria-hidden="true">↗</span></a>
+    </div>
+  </header>
+
+  <main id="main" class="page-shell">
+    <section class="hero">
+      <div class="hero-copy">
+        <div class="eyebrow"><span class="eyebrow-line"></span> ТВОЯ СЛЕДУЮЩАЯ ИСТОРИЯ</div>
+        <h1>Найди книгу,<br><em>которую захочется читать.</em></h1>
+        <p>Собери собственный запрос из жанров, тегов и описания. Поиск учтёт твою библиотеку и аккуратно обработает циклы.</p>
+      </div>
+      <div class="hero-art" aria-hidden="true">
+        <div class="orbit orbit-a"></div>
+        <div class="orbit orbit-b"></div>
+        <div class="floating-book book-back"><span></span><span></span><span></span></div>
+        <div class="floating-book book-front"><span></span><span></span><span></span></div>
+        <div class="spark spark-a">✦</div>
+        <div class="spark spark-b">✧</div>
+      </div>
+    </section>
+
+    <div class="workspace">
+      <aside class="search-panel" aria-label="Параметры поиска">
+        <div class="panel-heading">
+          <div>
+            <div class="section-kicker">ПОИСК</div>
+            <h2>Настрой фильтры</h2>
+          </div>
+          <span class="filter-icon" aria-hidden="true">⌕</span>
+        </div>
+
+        <form id="search-form">
+          <section class="filter-section">
+            <div class="field-heading">
+              <label class="field-title" for="tags-groups">Теги</label>
+              <span class="field-hint">Можно несколько</span>
+            </div>
+            <div id="tags-groups" class="groups-list"></div>
+            <button class="add-group" type="button" data-add-group="tags"><span>＋</span> Добавить группу тегов</button>
+            <p class="field-help">Внутри группы достаточно <b>одного</b> совпадения. Между группами требуются <b>все</b> совпадения.</p>
+          </section>
+
+          <div class="section-divider"></div>
+
+          <section class="filter-section">
+            <div class="field-heading">
+              <label class="field-title" for="genres-groups">Жанры</label>
+              <span class="field-hint">С подсказками</span>
+            </div>
+            <div id="genres-groups" class="groups-list"></div>
+            <button class="add-group" type="button" data-add-group="genres"><span>＋</span> Добавить группу жанров</button>
+            <datalist id="genre-options"></datalist>
+            <p class="field-help">Начни вводить название жанра и выбери подсказку. Логика групп такая же, как у тегов.</p>
+          </section>
+
+          <div class="section-divider"></div>
+
+          <section class="filter-section">
+            <div class="field-heading">
+              <label class="field-title" for="description">Поиск по описанию</label>
+              <span class="optional-label">НЕОБЯЗАТЕЛЬНО</span>
+            </div>
+            <div class="input-wrap search-input-wrap">
+              <span class="input-leading" aria-hidden="true">⌕</span>
+              <input id="description" name="description" type="search" autocomplete="off" placeholder="Например: развитие системы, магия…">
+              <kbd>⌕</kbd>
+            </div>
+            <p class="field-help">Будут найдены аннотации, в которых встречаются все введённые слова. Регистр не учитывается.</p>
+          </section>
+
+          <div class="section-divider"></div>
+
+          <section class="filter-section">
+            <div class="field-heading">
+              <span class="field-title">Учитывать при поиске</span>
+            </div>
+            <label class="switch-row">
+              <span class="switch-copy">
+                <strong>Исключить мою библиотеку</strong>
+                <small>«Прочитано» и «Не интересно»</small>
+              </span>
+              <input id="exclude-library" type="checkbox" checked>
+              <span class="switch" aria-hidden="true"></span>
+            </label>
+            <div id="cookie-area" class="cookie-area">
+              <label class="file-picker" for="cookies-file">
+                <span class="file-picker-icon" aria-hidden="true">↥</span>
+                <span class="file-picker-copy">
+                  <strong id="cookie-file-name">Добавить cookies.txt</strong>
+                  <small>Из авторизованного браузера</small>
+                </span>
+                <span class="file-picker-action">Обзор</span>
+              </label>
+              <input id="cookies-file" type="file" accept=".txt,text/plain" hidden>
+              <p class="privacy-note"><span aria-hidden="true">▣</span> Файл используется только на этом компьютере и удаляется после поиска.</p>
+              <p id="cookie-error" class="inline-error" hidden></p>
+            </div>
+            <label class="switch-row">
+              <span class="switch-copy">
+                <strong>Показывать только первую книгу цикла</strong>
+                <small>Если она подходит под фильтры</small>
+              </span>
+              <input id="collapse-cycles" type="checkbox" checked>
+              <span class="switch" aria-hidden="true"></span>
+            </label>
+            <div class="cycle-note">
+              <span class="cycle-note-icon" aria-hidden="true">↳</span>
+              <span>Если первая часть не подходит, покажем те продолжения, которые подходят.</span>
+            </div>
+          </section>
+
+          <details class="advanced-settings">
+            <summary>Дополнительные настройки <span aria-hidden="true">⌄</span></summary>
+            <div class="advanced-grid">
+              <label for="max-pages">Страниц на запрос
+                <input id="max-pages" name="max_pages" type="number" min="1" max="1000" value="200">
+              </label>
+              <label for="delay">Пауза между запросами
+                <span class="number-with-unit"><input id="delay" name="delay" type="number" min="0" max="30" step="0.1" value="0.3"><small>сек.</small></span>
+              </label>
+            </div>
+            <p class="field-help">Чем больше лимит, тем полнее поиск и тем дольше он может выполняться. Не ставь слишком маленькую паузу.</p>
+          </details>
+
+          <div class="form-error" id="form-error" role="alert" hidden></div>
+          <button class="submit-button" id="submit-button" type="submit">
+            <span>Найти произведения</span>
+            <span class="submit-arrow" aria-hidden="true">→</span>
+          </button>
+          <p class="submit-caption"><span aria-hidden="true">✦</span> Поиск выполняется с твоего компьютера</p>
+        </form>
+      </aside>
+
+      <section class="results-panel" aria-label="Результаты поиска">
+        <div class="results-top">
+          <div>
+            <div class="section-kicker">ВЫДАЧА</div>
+            <h2>Подходящие произведения</h2>
+            <p id="results-subtitle" class="results-subtitle">Задай фильтры и запусти поиск</p>
+          </div>
+          <div class="result-actions">
+            <button id="export-button" class="secondary-button" type="button" disabled><span aria-hidden="true">↧</span> CSV</button>
+            <button id="clear-button" class="icon-button" type="button" aria-label="Очистить результаты" title="Очистить результаты">↺</button>
+          </div>
+        </div>
+
+        <div id="progress-card" class="progress-card" hidden>
+          <div class="progress-head">
+            <div class="progress-spinner" aria-hidden="true"></div>
+            <div><strong id="progress-title">Собираем произведения…</strong><small id="progress-description">Обрабатываем запросы Author.Today</small></div>
+            <span id="progress-percent" class="progress-percent">В РАБОТЕ</span>
+          </div>
+          <div class="progress-track"><span id="progress-bar"></span></div>
+          <div class="log-preview" id="log-preview" aria-live="polite"></div>
+          <button id="toggle-log" class="log-toggle" type="button" aria-expanded="false">Показать ход поиска <span aria-hidden="true">⌄</span></button>
+          <div id="full-log" class="full-log" hidden></div>
+        </div>
+
+        <div class="result-toolbar" id="result-toolbar" hidden>
+          <div class="result-count"><strong id="result-count">0</strong><span>произведений найдено</span></div>
+          <div class="result-tools">
+            <label class="visually-hidden" for="result-filter">Фильтр по названию или автору</label>
+            <input id="result-filter" type="search" placeholder="Фильтр результатов…">
+            <label class="visually-hidden" for="result-sort">Сортировка</label>
+            <select id="result-sort">
+              <option value="title">По названию</option>
+              <option value="author">По автору</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="results-list" class="results-list">
+          <div class="empty-state" id="empty-state">
+            <div class="empty-illustration" aria-hidden="true">
+              <div class="empty-page page-one"></div>
+              <div class="empty-page page-two"></div>
+              <div class="empty-spark">✦</div>
+            </div>
+            <h3>Здесь начнётся поиск</h3>
+            <p>Добавь жанры, теги или ключевые слова из описания. Результаты появятся здесь.</p>
+          </div>
+        </div>
+
+        <div id="pagination" class="pagination" hidden>
+          <span id="page-info"></span>
+          <div class="pagination-buttons">
+            <button id="prev-page" type="button">← Назад</button>
+            <button id="next-page" type="button">Дальше →</button>
+          </div>
+        </div>
+        <div class="results-footer"><span class="footer-dot"></span> Данные и фильтры обрабатываются локально</div>
+      </section>
+    </div>
+
+    <footer class="page-footer">
+      <span>STORYFINDER <span class="footer-separator">/</span> ЛИЧНЫЙ ПОИСК ПО AUTHOR.TODAY</span>
+      <a href="https://author.today" target="_blank" rel="noopener noreferrer">Перейти на Author.Today ↗</a>
+    </footer>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+</body>
+</html>
