@@ -68,7 +68,7 @@ class AutocompleteSourceTests(unittest.TestCase):
         self.assertEqual(
             result,
             {
-                "tags": ["система", "игровая система", "система и уровни"],
+                "tags": ["система", "система и уровни", "игровая система"],
                 "query": "сист",
                 "source": "local_catalog",
             },
