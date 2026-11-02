@@ -3,7 +3,7 @@
 
   const PAGE_SIZE = 35;
   const state = {
-    tags: [[]], genres: [[]], genresCatalog: [], results: [],
+    tags: [[]], genres: [[]], genresCatalog: [], results: [], autocompleteId: 0,
     jobId: null, nextLog: 0, page: 1, toastTimer: null,
     pollTimer: null, logs: [], busy: false
   };
@@ -55,15 +55,169 @@
     if (!exists) group.values.push(value);
   }
 
-  function commitInput(group, input) {
-    const raw = input.value.trim();
-    if (!raw) return;
-    raw.split(",").forEach((part) => addToken(group, part));
-    input.value = "";
-    renderChips(group);
+  function renderChips(group) {
+    const row = group.entry;
+    if (!row) return;
+    row.querySelectorAll(".group-chip").forEach((chip) => chip.remove());
+    group.values.forEach((value, index) => {
+      const chip = document.createElement("span");
+      chip.className = "group-chip";
+      const text = document.createElement("span");
+      text.textContent = value;
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.textContent = "×";
+      remove.setAttribute("aria-label", "Удалить " + value);
+      remove.title = "Удалить " + value;
+      remove.addEventListener("click", () => {
+        group.values.splice(index, 1);
+        renderChips(group);
+      });
+      chip.append(text, remove);
+      row.insertBefore(chip, group.inputShell);
+    });
   }
 
-  function renderChips(group) {
+  function closeSuggestions(group) {
+    if (!group.suggestionList) return;
+    group.suggestionList.hidden = true;
+    group.input.setAttribute("aria-expanded", "false");
+    group.activeIndex = -1;
+  }
+
+  function updateActiveSuggestion(group) {
+    const options = group.suggestionList.querySelectorAll("[role='option']");
+    options.forEach((option, index) => {
+      const active = index === group.activeIndex;
+      option.setAttribute("aria-selected", String(active));
+      if (active) option.scrollIntoView({ block: "nearest" });
+    });
+  }
+
+  function selectSuggestion(group, value) {
+    addToken(group, value);
+    group.input.value = "";
+    closeSuggestions(group);
+    renderChips(group);
+    group.input.focus();
+  }
+
+  function showSuggestions(group, values, status) {
+    const list = group.suggestionList;
+    list.replaceChildren();
+    group.suggestions = values;
+    group.activeIndex = values.length ? 0 : -1;
+
+    if (status) {
+      const note = document.createElement("div");
+      note.className = "autocomplete-status";
+      note.textContent = status;
+      list.append(note);
+      list.hidden = false;
+    } else if (values.length) {
+      values.forEach((value, index) => {
+        const option = document.createElement("button");
+        option.type = "button";
+        option.className = "autocomplete-option";
+        option.setAttribute("role", "option");
+        option.setAttribute("aria-selected", String(index === group.activeIndex));
+        option.textContent = value;
+        option.addEventListener("mousedown", (event) => {
+          // Keep focus on the input so the option can be selected before blur.
+          event.preventDefault();
+          selectSuggestion(group, value);
+        });
+        list.append(option);
+      });
+      list.hidden = false;
+    } else {
+      list.hidden = true;
+    }
+    group.input.setAttribute("aria-expanded", String(!list.hidden));
+  }
+
+  function genreSuggestions(query) {
+    const normalized = query.trim().toLocaleLowerCase("ru");
+    return state.genresCatalog
+      .map((genre) => genre.name)
+      .filter((name) => name.toLocaleLowerCase("ru").includes(normalized))
+      .sort((left, right) => {
+        const leftStarts = left.toLocaleLowerCase("ru").startsWith(normalized);
+        const rightStarts = right.toLocaleLowerCase("ru").startsWith(normalized);
+        return Number(rightStarts) - Number(leftStarts) || left.localeCompare(right, "ru");
+      })
+      .slice(0, 12);
+  }
+
+  async function fetchTagSuggestions(group, query, requestId) {
+    const controller = new AbortController();
+    group.requestController = controller;
+    try {
+      const response = await fetch("/api/tag-suggestions?q=" + encodeURIComponent(query), {
+        headers: { "Accept": "application/json" },
+        signal: controller.signal
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.detail || "Не удалось загрузить теги.");
+      if (requestId !== group.requestId || document.activeElement !== group.input) return;
+      const suggestions = Array.isArray(payload.tags) ? payload.tags : [];
+      showSuggestions(group, suggestions, suggestions.length ? "" : "Подходящие теги не найдены.");
+    } catch (error) {
+      if (error.name === "AbortError" || requestId !== group.requestId) return;
+      showSuggestions(group, [], "Не удалось загрузить подсказки. Проверь соединение с Author.Today.");
+    }
+  }
+
+  function updateSuggestions(group, kind) {
+    const query = group.input.value.trim();
+    window.clearTimeout(group.suggestionTimer);
+    if (group.requestController) group.requestController.abort();
+    group.requestId = (group.requestId || 0) + 1;
+    const requestId = group.requestId;
+
+    if (query.length < 2) {
+      closeSuggestions(group);
+      return;
+    }
+    if (kind === "genres") {
+      const suggestions = genreSuggestions(query);
+      showSuggestions(group, suggestions, suggestions.length ? "" : "Жанр не найден.");
+      return;
+    }
+
+    showSuggestions(group, [], "Ищем подходящие теги…");
+    group.suggestionTimer = window.setTimeout(
+      () => fetchTagSuggestions(group, query, requestId),
+      400
+    );
+  }
+
+  function handleAutocompleteKeydown(event, group) {
+    const options = group.suggestionList.querySelectorAll("[role='option']");
+    if (event.key === "ArrowDown" && options.length) {
+      event.preventDefault();
+      group.activeIndex = Math.min(group.activeIndex + 1, options.length - 1);
+      updateActiveSuggestion(group);
+    } else if (event.key === "ArrowUp" && options.length) {
+      event.preventDefault();
+      group.activeIndex = Math.max(group.activeIndex - 1, 0);
+      updateActiveSuggestion(group);
+    } else if (event.key === "Enter") {
+      event.preventDefault();
+      if (!group.suggestionList.hidden && group.suggestions && group.suggestions.length) {
+        const index = group.activeIndex >= 0 ? group.activeIndex : 0;
+        selectSuggestion(group, group.suggestions[index]);
+      } else if (group.input.value.trim()) {
+        showToast("Выбери тег или жанр из предложенных вариантов.");
+      }
+    } else if (event.key === "Escape") {
+      closeSuggestions(group);
+    } else if (event.key === ",") {
+      // A comma is part of a possible multi-word value, not a separator.
+      event.preventDefault();
+    }
+  }
+
     const row = group.entry;
     if (!row) return;
     row.querySelectorAll(".group-chip").forEach((chip) => chip.remove());
@@ -115,26 +269,42 @@
     entry.className = "group-entry-line";
     group.entry = entry;
 
+    const inputShell = document.createElement("div");
+    inputShell.className = "autocomplete-shell";
+    group.inputShell = inputShell;
+
     const input = document.createElement("input");
     input.className = "group-input";
     input.type = "text";
     input.autocomplete = "off";
     input.spellcheck = false;
-    input.placeholder = kind === "tags" ? "Введи тег и нажми Enter…" : "Найди жанр и нажми Enter…";
-    input.setAttribute("aria-label", kind === "tags" ? "Теги, группа " + (index + 1) : "Жанры, группа " + (index + 1));
-    if (kind === "genres") input.setAttribute("list", "genre-options");
-    input.addEventListener("keydown", (event) => {
-      if (event.key === "Enter" || event.key === ",") {
-        event.preventDefault();
-        commitInput(group, input);
-      }
-    });
-    input.addEventListener("blur", () => commitInput(group, input));
-    input.addEventListener("input", () => {
-      if (input.value.includes(",")) commitInput(group, input);
-    });
+    input.placeholder = kind === "tags" ? "Начни вводить тег…" : "Начни вводить жанр…";
+    input.setAttribute("aria-label", kind === "tags" ? "Поиск тегов, группа " + (index + 1) : "Поиск жанров, группа " + (index + 1));
+    input.setAttribute("role", "combobox");
+    input.setAttribute("aria-autocomplete", "list");
+    input.setAttribute("aria-expanded", "false");
+    input.id = "autocomplete-input-" + (++state.autocompleteId);
+
+    const suggestionList = document.createElement("div");
+    suggestionList.className = "autocomplete-list";
+    suggestionList.id = input.id + "-list";
+    suggestionList.setAttribute("role", "listbox");
+    suggestionList.hidden = true;
+    input.setAttribute("aria-controls", suggestionList.id);
+
     group.input = input;
-    entry.append(input);
+    group.suggestionList = suggestionList;
+    group.suggestions = [];
+    group.activeIndex = -1;
+    input.addEventListener("input", () => updateSuggestions(group, kind));
+    input.addEventListener("keydown", (event) => handleAutocompleteKeydown(event, group));
+    input.addEventListener("blur", () => {
+      window.setTimeout(() => {
+        if (document.activeElement !== input) closeSuggestions(group);
+      }, 120);
+    });
+    inputShell.append(input, suggestionList);
+    entry.append(inputShell);
 
     wrapper.append(top, entry);
     if (group.values.length) {
@@ -163,11 +333,16 @@
   }
 
   function flushPendingInputs() {
-    ["tags", "genres"].forEach((kind) => {
-      state[kind].forEach((group) => {
-        if (group.input && group.input.value.trim()) commitInput(group, group.input);
-      });
-    });
+    for (const kind of ["tags", "genres"]) {
+      const pending = state[kind].find((group) => group.input && group.input.value.trim());
+      if (pending) {
+        showFormError("Выбери " + (kind === "tags" ? "тег" : "жанр") + " из подсказок или очисти поле.");
+        pending.input.focus();
+        updateSuggestions(pending, kind);
+        return false;
+      }
+    }
+    return true;
   }
 
   function serializeGroups(kind) {
@@ -192,20 +367,13 @@
   }
 
   async function loadGenres() {
-    const datalist = byId("genre-options");
     try {
       const response = await fetch("/api/genres");
       if (!response.ok) throw new Error("Не удалось получить список жанров.");
       const payload = await response.json();
       state.genresCatalog = Array.isArray(payload.genres) ? payload.genres : [];
-      datalist.replaceChildren();
-      state.genresCatalog.forEach((genre) => {
-        const option = document.createElement("option");
-        option.value = genre.name;
-        datalist.append(option);
-      });
     } catch (_error) {
-      showToast("Подсказки жанров пока недоступны. Можно вводить названия вручную.");
+      showToast("Не удалось загрузить каталог жанров Author.Today.");
     }
   }
 
@@ -412,8 +580,8 @@
   }
 
   function validateForm() {
-    flushPendingInputs();
     showFormError("");
+    if (!flushPendingInputs()) return false;
     cookieError.hidden = true;
     if (!serializeGroups("tags") && !serializeGroups("genres") && !byId("description").value.trim()) {
       showFormError("Добавь хотя бы один тег, жанр или слово для поиска.");
