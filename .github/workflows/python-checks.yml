@@ -16,6 +16,62 @@ jobs:
           python-version: "3.12"
       - name: Install dependencies
         run: pip install -r requirements.txt
+      - name: Probe public Author.Today endpoints
+        run: |
+          python - <<'PY'
+          import json
+          import requests
+          from bs4 import BeautifulSoup
+          session = requests.Session()
+          session.headers.update({
+              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0 Safari/537.36",
+              "Accept-Language": "ru,en;q=0.9",
+              "Accept": "text/html,application/json;q=0.9,*/*;q=0.8",
+          })
+          urls = [
+              "https://author.today/work/genres",
+              "https://author.today/search?q=система",
+              "https://author.today/search?category=works&q=система&view=list&field=any&sorting=relevance&format=any&page=1",
+              "https://author.today/work/553566",
+              "https://api.author.today/v1/work/553566/meta-info",
+              "https://api.author.today/v1/work/553566/details",
+              "https://api.author.today/v1/catalog/search?page=1&ps=8&genre=all&sorting=popular&form=any&state=any&series=any&access=any&dnl=any&promo=hide&upd=-1&pub=-1&length=any&fnd=false&rec=false&exc=false&disc=false",
+          ]
+          for url in urls:
+              print("\\n###", url)
+              try:
+                  response = session.get(url, timeout=25)
+                  print("status:", response.status_code, "final:", response.url)
+                  print("content-type:", response.headers.get("content-type"), "length:", len(response.content))
+                  if "json" in response.headers.get("content-type", ""):
+                      try:
+                          data = response.json()
+                          if isinstance(data, dict):
+                              print("json keys:", list(data)[:40])
+                              for key, value in data.items():
+                                  if isinstance(value, list):
+                                      print("list", key, "len", len(value))
+                                      if value:
+                                          print("first item:", json.dumps(value[0], ensure_ascii=False)[:1800])
+                          else:
+                              print("json:", json.dumps(data, ensure_ascii=False)[:1800])
+                      except Exception as exc:
+                          print("json parse:", repr(exc))
+                  elif "text/html" in response.headers.get("content-type", "") or response.text.lstrip().startswith("<"):
+                      soup = BeautifulSoup(response.text, "html.parser")
+                      links = soup.select('a[href*="/work/genre/"]')
+                      tag_links = soup.select('a[href*="/work/tag/"]')
+                      work_links = soup.select('a[href*="/work/"], a[href*="/audiobook/"]')
+                      print("title:", soup.title.get_text(" ", strip=True) if soup.title else None)
+                      print("genre links:", len(links), [(a.get_text(" ", strip=True), a.get("href")) for a in links[:5]])
+                      print("tag links:", len(tag_links), [(a.get_text(" ", strip=True), a.get("href")) for a in tag_links[:8]])
+                      print("work links:", len(work_links), [(a.get_text(" ", strip=True)[:60], a.get("href")) for a in work_links[:8]])
+                      print("html start:", response.text[:400].replace("\\n", " "))
+                  else:
+                      print("body:", response.text[:1200])
+              except Exception as exc:
+                  print("ERROR:", repr(exc))
+          PY
       - name: Compile Python files
         run: python -m py_compile advanced_search.py strict_tag_search.py webapp.py
       - name: Check frontend JavaScript
