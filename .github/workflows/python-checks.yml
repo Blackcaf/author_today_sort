@@ -1,0 +1,22 @@
+name: Python checks
+
+on:
+  push:
+    branches: ["feature/advanced-search"]
+  pull_request:
+    branches: ["master"]
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Compile Python files
+        run: python -m py_compile advanced_search.py strict_tag_search.py
+      - name: Run tests
+        run: python -m unittest discover -s tests -v
