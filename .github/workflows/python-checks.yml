@@ -17,6 +17,6 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
       - name: Compile Python files
-        run: python -m py_compile advanced_search.py strict_tag_search.py
+        run: python -m py_compile advanced_search.py strict_tag_search.py webapp.py
       - name: Run tests
         run: python -m unittest discover -s tests -v
