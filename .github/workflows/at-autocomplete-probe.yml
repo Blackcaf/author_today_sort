@@ -74,4 +74,25 @@ jobs:
                       break
               except Exception as e:
                   print("JS_ERROR", src, repr(e))
+
+          edit_response = s.get("https://author.today/work/553566/edit", timeout=25)
+          edit_soup = BeautifulSoup(edit_response.text, "html.parser")
+          edit_scripts = [urljoin("https://author.today", n.get("src", "")) for n in edit_soup.select("script[src]")]
+          print("EDIT_PAGE", edit_response.status_code, len(edit_response.text), "SCRIPT_URLS", edit_scripts)
+          for src in edit_scripts:
+              try:
+                  response = s.get(src, timeout=25)
+                  body = response.text
+                  print("EDIT_JS", src, response.status_code, len(body))
+                  for pattern in [r"tag", r"tags", r"autocomplete", r"suggest", r"v1/[^\\\"']+" ]:
+                      matches = list(re.finditer(pattern, body, re.I))
+                      print(" PATTERN", pattern, "COUNT", len(matches))
+                      for match in matches[:10]:
+                          start = max(0, match.start()-180)
+                          end = min(len(body), match.end()+260)
+                          snippet = re.sub(r"\\s+", " ", body[start:end])
+                          if re.search(r"(search|suggest|auto|query|tag|api)", snippet, re.I):
+                              print("  SNIP", snippet[:500])
+              except Exception as exc:
+                  print("EDIT_JS_ERROR", src, repr(exc))
           PY
