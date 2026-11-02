@@ -184,6 +184,7 @@ class AuthorTodayClient:
         self.log = log or (lambda message: None)
         self.cache = WorkCache()
         self.genre_catalog: dict[str, str] | None = None
+        self.work_kinds: dict[str, str] = {}
 
     def close(self) -> None:
         self.cache.close()
@@ -268,8 +269,7 @@ class AuthorTodayClient:
             ("view", "list"),
             ("field", "any"),
             ("sorting", "relevance"),
-            ("format", "ebook"),
-            ("finished", "true"),
+            ("format", "any"),
         ]
         params.extend(("tags", tag) for tag in tags)
         params.append(("page", str(page)))
@@ -282,6 +282,7 @@ class AuthorTodayClient:
         for page in range(1, max_pages + 1):
             html = self.get(self._search_url(tags, page))
             cards = parse_result_cards(html)
+            self.work_kinds.update({work_id: data.get("kind", "work") for work_id, data in cards.items()})
             before = len(result)
             result.update(cards)
             soup = BeautifulSoup(html, "html.parser")
@@ -473,6 +474,7 @@ class AuthorTodayClient:
         )
 
     def get_work_detail(self, work_id: str, kind: str = "work") -> WorkInfo:
+        kind = self.work_kinds.get(work_id, kind)
         cached = self.cache.get(work_id)
         if cached:
             return cached
@@ -602,7 +604,7 @@ def run_search(
                 log(f"Правило циклов: {before} → {len(details)} произведений.")
 
         else:
-            details = [WorkInfo(id=work_id) for work_id in candidate_ids]
+            details = [WorkInfo(id=work_id, kind=client.work_kinds.get(work_id, "work")) for work_id in candidate_ids]
 
         # Apply personal-library exclusions after the cycle rule. Thus, if the first
         # volume matches the chosen filters but is already read/disliked, sequels
