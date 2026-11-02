@@ -103,7 +103,7 @@ def parse_result_cards(page_html: str) -> dict[str, dict[str, str]]:
 
 def parse_library_ids(page_html: str) -> set[str]:
     soup = BeautifulSoup(page_html, "html.parser")
-    ids = set(re.findall(r'id=["\\']work-(\d+)["\\']', page_html))
+    ids = set(re.findall(r"""id=["']work-(\d+)["']""", page_html))
     if ids:
         return ids
     for card in soup.select(".bookcard[id]"):
