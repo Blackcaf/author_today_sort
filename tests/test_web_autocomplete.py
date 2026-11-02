@@ -1,11 +1,10 @@
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 from webapp import (
     _parse_genre_catalog,
-    _parse_official_tag_suggestions,
-    _TAG_SUGGESTION_CACHE,
-    _TAG_SUGGESTION_CACHE_LOCK,
+    _parse_tag_catalog,
+    _suggest_tag_names,
     tag_suggestions,
 )
 
@@ -28,65 +27,59 @@ class AutocompleteSourceTests(unittest.TestCase):
             ],
         )
 
-    def test_official_tag_response_is_parsed_and_deduplicated(self):
+    def test_tag_catalog_preserves_yo_variants_and_removes_exact_duplicates(self):
         payload = {
-            "status": "Success",
-            "data": {
-                "items": [
-                    {"title": "система", "count": 2455},
-                    {"title": "игровая система", "count": 190},
-                    {"title": "система", "count": 20},
-                    {"title": "", "count": 1},
-                ],
-                "totalCount": 250,
-            },
+            "tags": [
+                "Тёмное фэнтези",
+                "Темное фэнтези",
+                " фэнтези ",
+                "фэнтези",
+                "",
+                42,
+            ]
         }
         self.assertEqual(
-            _parse_official_tag_suggestions(payload),
-            ["система", "игровая система"],
+            _parse_tag_catalog(payload),
+            ["Тёмное фэнтези", "Темное фэнтези", "фэнтези"],
         )
 
-    def test_tag_suggestions_call_official_api_with_query_parameter(self):
-        with _TAG_SUGGESTION_CACHE_LOCK:
-            _TAG_SUGGESTION_CACHE.clear()
-        response = Mock()
-        response.json.return_value = {
-            "status": "Success",
-            "data": {
-                "items": [
-                    {"title": "система", "count": 2455},
-                    {"title": "игровая система", "count": 190},
-                ],
-                "totalCount": 250,
-            },
-        }
-        with patch("webapp.requests.get", return_value=response) as get:
+    def test_local_suggestions_match_substrings_and_prioritize_prefixes(self):
+        catalog = [
+            "приключения",
+            "магия и приключения",
+            "темное фэнтези",
+            "тёмное фэнтези",
+            "фэнтези",
+        ]
+        self.assertEqual(
+            _suggest_tag_names("фэнтези", catalog),
+            ["фэнтези", "темное фэнтези", "тёмное фэнтези"],
+        )
+        self.assertEqual(
+            _suggest_tag_names("приключ", catalog),
+            ["приключения", "магия и приключения"],
+        )
+
+    def test_tag_suggestions_use_local_catalog(self):
+        catalog = ["система", "игровая система", "система и уровни"]
+        with patch("webapp._load_tag_catalog", return_value=catalog):
             result = tag_suggestions("сист")
 
-        self.assertEqual(result["tags"], ["система", "игровая система"])
-        self.assertEqual(get.call_args.kwargs["params"], {"query": "сист"})
         self.assertEqual(
-            get.call_args.kwargs["headers"]["Authorization"],
-            "Bearer guest",
-        )
-        self.assertEqual(get.call_args.args[0], "https://api.author.today/v2/work/tags")
-
-    def test_tag_suggestions_preserve_standard_fantasy_spelling(self):
-        with _TAG_SUGGESTION_CACHE_LOCK:
-            _TAG_SUGGESTION_CACHE.clear()
-        response = Mock()
-        response.json.return_value = {
-            "status": "Success",
-            "data": {
-                "items": [{"title": "фэнтези", "count": 2159}],
-                "totalCount": 109,
+            result,
+            {
+                "tags": ["система", "система и уровни", "игровая система"],
+                "query": "сист",
+                "source": "local_catalog",
             },
-        }
-        with patch("webapp.requests.get", return_value=response) as get:
-            result = tag_suggestions("Фэнтези")
+        )
 
-        self.assertEqual(result["tags"], ["фэнтези"])
-        self.assertEqual(get.call_args.kwargs["params"], {"query": "фэнтези"})
+    def test_tag_suggestions_support_both_yo_and_e_queries(self):
+        catalog = ["тёмное фэнтези", "темное фэнтези"]
+        with patch("webapp._load_tag_catalog", return_value=catalog):
+            result = tag_suggestions("темное")
+
+        self.assertEqual(result["tags"], catalog)
 
 
 if __name__ == "__main__":

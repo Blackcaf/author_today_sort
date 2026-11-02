@@ -165,7 +165,7 @@
       showSuggestions(group, suggestions, suggestions.length ? "" : "Подходящие теги не найдены.");
     } catch (error) {
       if (error.name === "AbortError" || requestId !== group.requestId) return;
-      showSuggestions(group, [], "Не удалось загрузить подсказки. Проверь соединение с Author.Today.");
+      showSuggestions(group, [], "Не удалось загрузить локальный каталог тегов. Обнови страницу и попробуй снова.");
     }
   }
 
