@@ -3,7 +3,8 @@
 
   const PAGE_SIZE = 35;
   const state = {
-    tags: [[]], genres: [[]], genresCatalog: [], results: [], autocompleteId: 0,
+    tags: [[]], genres: [[]], genresCatalog: [], genresLoaded: false, genresLoadFailed: false,
+    results: [], autocompleteId: 0,
     jobId: null, nextLog: 0, page: 1, toastTimer: null,
     pollTimer: null, logs: [], busy: false
   };
@@ -180,8 +181,16 @@
       return;
     }
     if (kind === "genres") {
+      if (!state.genresLoaded) {
+        showSuggestions(group, [], "Загружаем каталог жанров Author.Today…");
+        return;
+      }
+      if (state.genresLoadFailed) {
+        showSuggestions(group, [], "Каталог жанров не загрузился. Обнови страницу и попробуй снова.");
+        return;
+      }
       const suggestions = genreSuggestions(query);
-      showSuggestions(group, suggestions, suggestions.length ? "" : "Жанр не найден.");
+      showSuggestions(group, suggestions, suggestions.length ? "" : "Совпадений в каталоге жанров нет.");
       return;
     }
 
@@ -345,12 +354,26 @@
 
   async function loadGenres() {
     try {
-      const response = await fetch("/api/genres");
-      if (!response.ok) throw new Error("Не удалось получить список жанров.");
+      const response = await fetch("/api/genres", {
+        headers: { "Accept": "application/json" }
+      });
       const payload = await response.json();
-      state.genresCatalog = Array.isArray(payload.genres) ? payload.genres : [];
-    } catch (_error) {
-      showToast("Не удалось загрузить каталог жанров Author.Today.");
+      if (!response.ok) throw new Error(payload.detail || "Не удалось получить список жанров.");
+      if (!Array.isArray(payload.genres) || payload.genres.length === 0) {
+        throw new Error("Author.Today вернул пустой каталог жанров.");
+      }
+      state.genresCatalog = payload.genres.filter((genre) => genre && genre.name);
+      state.genresLoadFailed = false;
+    } catch (error) {
+      state.genresLoadFailed = true;
+      showToast(error.message || "Не удалось загрузить каталог жанров Author.Today.");
+    } finally {
+      state.genresLoaded = true;
+      state.genres.forEach((group) => {
+        if (group.input && group.input.value.trim() && document.activeElement === group.input) {
+          updateSuggestions(group, "genres");
+        }
+      });
     }
   }
 
