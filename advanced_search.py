@@ -452,15 +452,23 @@ class AuthorTodayClient:
                 if number_match:
                     series_number = int(number_match.group(1))
 
+        # Some layouts place tag links outside the block between the title
+        # and annotation tab. Search the full work page as a fallback.
+        if not tags:
+            for anchor in soup.select('a[href*="/work/tag/"], a[href^="/tag/"]'):
+                label = anchor.get_text(" ", strip=True)
+                if label and label not in tags:
+                    tags.append(label)
+
         description = AuthorTodayClient._description_from_soup(soup)
         if not genres:
             # Some layouts place the primary genre link before h1's nearest wrapper.
             for anchor in soup.select('a[href*="/work/genre/"]'):
+                href = anchor.get("href", "")
+                path_parts = [part for part in urlsplit(href).path.strip("/").split("/") if part]
                 label = anchor.get_text(" ", strip=True)
-                if label and label not in genres:
+                if len(path_parts) == 3 and path_parts[:2] == ["work", "genre"] and label and label not in genres:
                     genres.append(label)
-                    if len(genres) >= 12:
-                        break
 
         return WorkInfo(
             id=work_id,
@@ -475,10 +483,16 @@ class AuthorTodayClient:
             series_number=series_number,
         )
 
-    def get_work_detail(self, work_id: str, kind: str = "work") -> WorkInfo:
+    def get_work_detail(
+        self,
+        work_id: str,
+        kind: str = "work",
+        *,
+        refresh_if_no_tags: bool = False,
+    ) -> WorkInfo:
         kind = self.work_kinds.get(work_id, kind)
         cached = self.cache.get(work_id)
-        if cached:
+        if cached and (not refresh_if_no_tags or cached.tags):
             return cached
         page_html = self.get(f"/{kind}/{work_id}")
         info = self.parse_work_detail(work_id, kind, page_html)
