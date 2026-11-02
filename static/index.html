@@ -66,7 +66,7 @@
             <label class="field-title" for="username">Профиль Author.Today</label>
             <div class="input-wrap profile-input-wrap">
               <span class="input-leading" aria-hidden="true">@</span>
-              <input id="username" name="username" type="text" autocomplete="off" spellcheck="false" value="daniilmantus" placeholder="Логин профиля…" required>
+              <input id="username" name="username" type="text" autocomplete="off" spellcheck="false" placeholder="Например, your_login…" required>
             </div>
             <p class="field-help">Имя профиля, с которого будут загружены списки библиотеки.</p>
           </section>
@@ -210,7 +210,7 @@
           </div>
         </div>
 
-        <div id="results-list" class="results-list">
+        <div id="results-list" class="results-list" aria-live="polite" aria-atomic="false">
           <div class="empty-state" id="empty-state">
             <div class="empty-illustration" aria-hidden="true">
               <div class="empty-page page-one"></div>
