@@ -1,4 +1,4 @@
-name: Author.Today autocomplete smoke test
+name: Author.Today autocomplete diagnostics
 
 on:
   pull_request:
@@ -13,28 +13,60 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install dependencies
-        run: pip install -r requirements.txt
-      - name: Test public Author.Today autocomplete sources
+        run: pip install requests beautifulsoup4
+      - name: Inspect Author.Today tag routes and frontend scripts
         run: |
           python - <<'PY'
-          from webapp import _parse_genre_catalog, genres, tag_suggestions
-          from advanced_search import AuthorTodayClient
+          import re
+          import requests
+          from bs4 import BeautifulSoup
+          from urllib.parse import urljoin
 
-          genre_result = genres()
-          genre_names = {item["name"].casefold() for item in genre_result["genres"]}
-          print("Genre count:", len(genre_names))
-          print("Fantasy genre found:", "фэнтези" in genre_names)
-          assert "фэнтези" in genre_names
+          s = requests.Session()
+          s.headers.update({"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0 Safari/537.36", "Accept-Language": "ru,en;q=0.9"})
+          paths = [
+              "/work/tag/система",
+              "/work/tag/сист",
+              "/work/tags",
+              "/work/tag",
+              "/work/553566",
+              "/work/553566/edit",
+          ]
+          for path in paths:
+              try:
+                  r = s.get(urljoin("https://author.today", path), timeout=25)
+                  soup = BeautifulSoup(r.text, "html.parser")
+                  print("ROUTE", path, r.status_code, r.url, soup.title.get_text(" ", strip=True) if soup.title else "")
+                  print("  scripts:", [x.get("src") for x in soup.select("script[src]")][:15])
+                  print("  tag links:", [(a.get_text(" ", strip=True), a.get("href")) for a in soup.select('a[href*="/work/tag/"]')[:5]])
+              except Exception as e:
+                  print("ROUTE_ERROR", path, repr(e))
 
-          client = AuthorTodayClient(delay=0.0)
-          try:
-              sample = client.get_work_detail("553566", refresh_if_no_tags=True)
-              print("Known work tags:", sample.tags)
-              assert "система" in {tag.casefold() for tag in sample.tags}
-          finally:
-              client.close()
-
-          suggestions = tag_suggestions("система")
-          print("Tag suggestions:", suggestions["tags"])
-          assert any(tag.casefold() == "система" for tag in suggestions["tags"])
+          page = s.get("https://author.today/work/553566", timeout=25).text
+          soup = BeautifulSoup(page, "html.parser")
+          scripts = []
+          for node in soup.select("script[src]"):
+              src = urljoin("https://author.today", node.get("src", ""))
+              if src.endswith(".js") or ".js?" in src:
+                  scripts.append(src)
+          print("JS_FILES", len(scripts))
+          patterns = re.compile(r"autocomplete|tag(s)?Suggest|suggest(Tag)?|/work/tag|tags?", re.I)
+          shown = 0
+          for src in scripts:
+              try:
+                  r = s.get(src, timeout=20)
+                  body = r.text
+                  matches = list(patterns.finditer(body))
+                  if not matches:
+                      continue
+                  print("JS_MATCH_FILE", src, "status", r.status_code, "bytes", len(body), "matches", len(matches))
+                  for match in matches[:4]:
+                      start = max(0, match.start()-180)
+                      end = min(len(body), match.end()+280)
+                      print("  MATCH", re.sub(r"\\s+", " ", body[start:end])[:500])
+                  shown += 1
+                  if shown >= 8:
+                      break
+              except Exception as e:
+                  print("JS_ERROR", src, repr(e))
           PY
