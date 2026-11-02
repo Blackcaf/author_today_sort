@@ -8,7 +8,7 @@ import uuid
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 
 from bs4 import BeautifulSoup
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
@@ -63,22 +63,39 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+def _parse_genre_catalog(page_html: str) -> list[dict[str, str]]:
+    """Extract only real genre routes, not navigation links such as /genre/all/ebook."""
+    soup = BeautifulSoup(page_html, "html.parser")
+    items: dict[str, dict[str, str]] = {}
+    for anchor in soup.select('a[href*="/work/genre/"]'):
+        href = anchor.get("href", "")
+        name = anchor.get_text(" ", strip=True)
+        path_parts = [part for part in urlsplit(href).path.strip("/").split("/") if part]
+        if len(path_parts) != 3 or path_parts[:2] != ["work", "genre"]:
+            continue
+        slug = path_parts[2]
+        if not name or slug.casefold() == "all":
+            continue
+        items[slug] = {"name": name, "slug": slug}
+    return sorted(items.values(), key=lambda item: item["name"].casefold())
+
+
+def _tag_search_path(query: str) -> str:
+    # Author.Today redirects to a blank search page if unrelated search
+    # parameters (category/view/field/etc.) are appended to this URL.
+    return "/search?" + urlencode({"q": query})
+
+
 @app.get("/api/genres")
 def genres() -> dict[str, Any]:
     """Return the current public genre directory for autocomplete."""
     client = AuthorTodayClient(delay=0.0)
     try:
         page_html = client.get("/work/genres")
-        soup = BeautifulSoup(page_html, "html.parser")
-        items: dict[str, dict[str, str]] = {}
-        for anchor in soup.select('a[href*="/work/genre/"]'):
-            href = anchor.get("href", "")
-            name = anchor.get_text(" ", strip=True)
-            slug_part = href.split("/work/genre/", 1)[-1].split("/", 1)[0].split("?", 1)[0].split("#", 1)[0]
-            if not name or not slug_part:
-                continue
-            items[slug_part] = {"name": name, "slug": slug_part}
-        return {"genres": sorted(items.values(), key=lambda item: item["name"].casefold())}
+        catalog = _parse_genre_catalog(page_html)
+        if not catalog:
+            raise RuntimeError("Каталог жанров вернул пустой список.")
+        return {"genres": catalog}
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Не удалось загрузить жанры Author.Today: {exc}") from exc
     finally:
@@ -101,16 +118,7 @@ def tag_suggestions(q: str = "") -> dict[str, Any]:
 
     client = AuthorTodayClient(delay=0.0)
     try:
-        params = urlencode({
-            "category": "works",
-            "q": query,
-            "view": "list",
-            "field": "any",
-            "sorting": "relevance",
-            "format": "any",
-            "page": 1,
-        })
-        page_html = client.get("/search?" + params)
+        page_html = client.get(_tag_search_path(query))
         cards = parse_result_cards(page_html)
         frequencies: dict[str, int] = {}
         query_parts = query.casefold().split()
@@ -120,7 +128,11 @@ def tag_suggestions(q: str = "") -> dict[str, Any]:
         # present in Author.Today work metadata.
         for work_id, card in list(cards.items())[:8]:
             try:
-                work = client.get_work_detail(work_id, card.get("kind", "work"))
+                work = client.get_work_detail(
+                    work_id,
+                    card.get("kind", "work"),
+                    refresh_if_no_tags=True,
+                )
             except Exception:
                 continue
             for raw_tag in work.tags or []:
