@@ -71,7 +71,7 @@ class AutocompleteSourceTests(unittest.TestCase):
         )
         self.assertEqual(get.call_args.args[0], "https://api.author.today/v2/work/tags")
 
-    def test_tag_suggestions_normalize_yo_before_official_lookup(self):
+    def test_tag_suggestions_preserve_standard_fantasy_spelling(self):
         with _TAG_SUGGESTION_CACHE_LOCK:
             _TAG_SUGGESTION_CACHE.clear()
         response = Mock()
@@ -86,7 +86,7 @@ class AutocompleteSourceTests(unittest.TestCase):
             result = tag_suggestions("Фэнтези")
 
         self.assertEqual(result["tags"], ["фентези"])
-        self.assertEqual(get.call_args.kwargs["params"], {"query": "фентези"})
+        self.assertEqual(get.call_args.kwargs["params"], {"query": "фэнтези"})
 
 
 if __name__ == "__main__":
