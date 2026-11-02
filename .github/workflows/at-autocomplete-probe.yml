@@ -71,4 +71,17 @@ jobs:
                       print("body:", response.text[:1200])
               except Exception as exc:
                   print("ERROR:", repr(exc))
+
+          from advanced_search import AuthorTodayClient, parse_result_cards
+          print("\\n### Existing project parser against Author.Today text search")
+          client = AuthorTodayClient(delay=0.0)
+          try:
+              html = client.get("/search?q=система")
+              cards = parse_result_cards(html)
+              print("parsed works:", len(cards), "first IDs:", list(cards)[:8])
+              for work_id, card in list(cards.items())[:3]:
+                  work = client.get_work_detail(work_id, card.get("kind", "work"))
+                  print("work:", work_id, "title:", work.title, "tags:", work.tags)
+          finally:
+              client.close()
           PY
