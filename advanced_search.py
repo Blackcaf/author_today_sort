@@ -18,7 +18,7 @@ import webbrowser
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Callable
-from urllib.parse import urlencode, urljoin
+from urllib.parse import urlencode, urljoin, urlsplit
 
 import requests
 from bs4 import BeautifulSoup
