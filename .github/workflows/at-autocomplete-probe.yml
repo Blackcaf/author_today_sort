@@ -154,4 +154,42 @@ jobs:
                       print("TAG_PROBE_ERROR", path, repr(e))
           finally:
               client.close()
+
+          print("AUTHOR TODAY V2 TAGS API PROBE")
+          bundle_url = "https://author.today/_nuxt/BmH58EDp.js"
+          bundle = s.get(bundle_url, timeout=25).text
+          for term in ["getWorksTags", "getGenres", "getWorkSettings"]:
+              pos = bundle.find(term)
+              print("API_METHOD", term, re.sub(r"\\s+", " ", bundle[max(0,pos-220):pos+400]) if pos >= 0 else "not found")
+
+          for host in ["https://author.today", "https://api.author.today"]:
+              for suffix in [
+                  "/v2/work/tags",
+                  "/v2/work/tags?q=сист",
+                  "/v2/work/tags?query=сист",
+                  "/v2/work/tags?search=сист",
+                  "/v2/work/tags?term=сист",
+                  "/v2/work/tags?text=сист",
+              ]:
+                  url = host + suffix
+                  try:
+                      response = s.get(url, headers={"Referer": "https://author.today/work/553566", "Accept": "application/json, text/plain, */*"}, timeout=20)
+                      print("V2_TAGS", url, "STATUS", response.status_code, "FINAL", response.url, "TYPE", response.headers.get("content-type"), "LEN", len(response.content))
+                      try:
+                          payload = response.json()
+                          if isinstance(payload, dict):
+                              print("  KEYS", list(payload)[:30])
+                              for key, value in payload.items():
+                                  if isinstance(value, list):
+                                      print("  LIST", key, "LEN", len(value), "SAMPLE", json.dumps(value[:3], ensure_ascii=False)[:1600])
+                                  elif isinstance(value, (str, int, float, bool)) or value is None:
+                                      print("  VALUE", key, repr(value)[:250])
+                          elif isinstance(payload, list):
+                              print("  LIST", "ROOT", "LEN", len(payload), "SAMPLE", json.dumps(payload[:5], ensure_ascii=False)[:1600])
+                          else:
+                              print("  JSON", repr(payload)[:1000])
+                      except Exception:
+                          print("  BODY", response.text[:1000].replace("\\n", " "))
+                  except Exception as exc:
+                      print("V2_TAGS_ERROR", url, repr(exc))
           PY
