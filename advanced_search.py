@@ -334,6 +334,7 @@ class AuthorTodayClient:
             path = base_path if page == 1 else f"{base_path}?page={page}"
             html = self.get(path)
             cards = parse_result_cards(html)
+            self.work_kinds.update({work_id: data.get("kind", "work") for work_id, data in cards.items()})
             before = len(result)
             result.update(cards)
             soup = BeautifulSoup(html, "html.parser")
