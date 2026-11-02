@@ -12,6 +12,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Install probe dependencies
+        run: pip install requests beautifulsoup4
       - name: Probe public Author.Today endpoints
         run: |
           python - <<'PY'
