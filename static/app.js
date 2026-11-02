@@ -439,7 +439,7 @@
     if (state.busy || !validateForm()) return;
     updateUrl();
     const formData = new FormData();
-    formData.append("username", "daniilmantus");
+    formData.append("username", byId("username").value.trim());
     formData.append("tags", serializeGroups("tags"));
     formData.append("genres", serializeGroups("genres"));
     formData.append("description", byId("description").value.trim());
