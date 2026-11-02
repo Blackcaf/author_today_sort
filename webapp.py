@@ -8,13 +8,14 @@ import uuid
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlencode
 
 from bs4 import BeautifulSoup
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from advanced_search import AuthorTodayClient, run_search
+from advanced_search import AuthorTodayClient, parse_result_cards, run_search
 
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
@@ -31,6 +32,9 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 _jobs: dict[str, dict[str, Any]] = {}
 _jobs_lock = threading.Lock()
+_TAG_SUGGESTION_CACHE: dict[str, tuple[float, list[str]]] = {}
+_TAG_SUGGESTION_CACHE_TTL = 10 * 60
+_TAG_SUGGESTION_CACHE_LOCK = threading.Lock()
 
 
 def _cleanup_jobs() -> None:
@@ -77,6 +81,74 @@ def genres() -> dict[str, Any]:
         return {"genres": sorted(items.values(), key=lambda item: item["name"].casefold())}
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Не удалось загрузить жанры Author.Today: {exc}") from exc
+    finally:
+        client.close()
+
+
+@app.get("/api/tag-suggestions")
+def tag_suggestions(q: str = "") -> dict[str, Any]:
+    """Suggest real tags scraped from the metadata of matching public works."""
+    query = " ".join(q.split())
+    if len(query) < 2:
+        return {"tags": [], "query": query}
+
+    cache_key = query.casefold()
+    now = time.time()
+    with _TAG_SUGGESTION_CACHE_LOCK:
+        cached = _TAG_SUGGESTION_CACHE.get(cache_key)
+        if cached and now - cached[0] < _TAG_SUGGESTION_CACHE_TTL:
+            return {"tags": cached[1], "query": query, "cached": True}
+
+    client = AuthorTodayClient(delay=0.0)
+    try:
+        params = urlencode({
+            "category": "works",
+            "q": query,
+            "view": "list",
+            "field": "any",
+            "sorting": "relevance",
+            "format": "any",
+            "page": 1,
+        })
+        page_html = client.get("/search?" + params)
+        cards = parse_result_cards(page_html)
+        frequencies: dict[str, int] = {}
+        query_parts = query.casefold().split()
+
+        # Suggestions are sampled from a small set of matching works. This keeps
+        # typing responsive while ensuring every returned value is a tag actually
+        # present in Author.Today work metadata.
+        for work_id, card in list(cards.items())[:8]:
+            try:
+                work = client.get_work_detail(work_id, card.get("kind", "work"))
+            except Exception:
+                continue
+            for raw_tag in work.tags or []:
+                tag = " ".join(raw_tag.split())
+                normalized = tag.casefold()
+                if tag and all(part in normalized for part in query_parts):
+                    frequencies[tag] = frequencies.get(tag, 0) + 1
+
+        suggestions = sorted(
+            frequencies,
+            key=lambda tag: (
+                -frequencies[tag],
+                not tag.casefold().startswith(cache_key),
+                tag.casefold(),
+            ),
+        )[:12]
+        with _TAG_SUGGESTION_CACHE_LOCK:
+            _TAG_SUGGESTION_CACHE[cache_key] = (time.time(), suggestions)
+            if len(_TAG_SUGGESTION_CACHE) > 256:
+                oldest = sorted(_TAG_SUGGESTION_CACHE, key=lambda key: _TAG_SUGGESTION_CACHE[key][0])[:64]
+                for key in oldest:
+                    _TAG_SUGGESTION_CACHE.pop(key, None)
+        return {"tags": suggestions, "query": query}
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Не удалось получить подсказки тегов Author.Today: {exc}",
+        ) from exc
     finally:
         client.close()
 
