@@ -1,7 +1,13 @@
 import unittest
-from urllib.parse import parse_qs, urlsplit
+from unittest.mock import Mock, patch
 
-from webapp import _parse_genre_catalog, _tag_search_path
+from webapp import (
+    _parse_genre_catalog,
+    _parse_official_tag_suggestions,
+    _TAG_SUGGESTION_CACHE,
+    _TAG_SUGGESTION_CACHE_LOCK,
+    tag_suggestions,
+)
 
 
 class AutocompleteSourceTests(unittest.TestCase):
@@ -22,10 +28,65 @@ class AutocompleteSourceTests(unittest.TestCase):
             ],
         )
 
-    def test_tag_search_url_uses_only_supported_query_parameter(self):
-        parsed = urlsplit(_tag_search_path("система"))
-        self.assertEqual(parsed.path, "/search")
-        self.assertEqual(parse_qs(parsed.query), {"q": ["система"]})
+    def test_official_tag_response_is_parsed_and_deduplicated(self):
+        payload = {
+            "status": "Success",
+            "data": {
+                "items": [
+                    {"title": "система", "count": 2455},
+                    {"title": "игровая система", "count": 190},
+                    {"title": "система", "count": 20},
+                    {"title": "", "count": 1},
+                ],
+                "totalCount": 250,
+            },
+        }
+        self.assertEqual(
+            _parse_official_tag_suggestions(payload),
+            ["система", "игровая система"],
+        )
+
+    def test_tag_suggestions_call_official_api_with_query_parameter(self):
+        with _TAG_SUGGESTION_CACHE_LOCK:
+            _TAG_SUGGESTION_CACHE.clear()
+        response = Mock()
+        response.json.return_value = {
+            "status": "Success",
+            "data": {
+                "items": [
+                    {"title": "система", "count": 2455},
+                    {"title": "игровая система", "count": 190},
+                ],
+                "totalCount": 250,
+            },
+        }
+        with patch("webapp.requests.get", return_value=response) as get:
+            result = tag_suggestions("сист")
+
+        self.assertEqual(result["tags"], ["система", "игровая система"])
+        self.assertEqual(get.call_args.kwargs["params"], {"query": "сист"})
+        self.assertEqual(
+            get.call_args.kwargs["headers"]["Authorization"],
+            "Bearer guest",
+        )
+        self.assertEqual(get.call_args.args[0], "https://api.author.today/v2/work/tags")
+
+    def test_tag_suggestions_normalize_yo_before_official_lookup(self):
+        with _TAG_SUGGESTION_CACHE_LOCK:
+            _TAG_SUGGESTION_CACHE.clear()
+        response = Mock()
+        response.json.return_value = {
+            "status": "Success",
+            "data": {
+                "items": [{"title": "фентези", "count": 2159}],
+                "totalCount": 109,
+            },
+        }
+        with patch("webapp.requests.get", return_value=response) as get:
+            result = tag_suggestions("Фэнтези")
+
+        self.assertEqual(result["tags"], ["фентези"])
+        self.assertEqual(get.call_args.kwargs["params"], {"query": "фентези"})
 
 
 if __name__ == "__main__":
