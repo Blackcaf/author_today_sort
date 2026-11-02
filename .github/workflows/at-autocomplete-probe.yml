@@ -1,11 +1,11 @@
-name: Author.Today autocomplete diagnostics
+name: Author.Today autocomplete API probe
 
 on:
   pull_request:
     branches: ["master"]
 
 jobs:
-  smoke-test:
+  probe:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -14,219 +14,38 @@ jobs:
           python-version: "3.12"
       - name: Install dependencies
         run: pip install requests beautifulsoup4
-      - name: Inspect Author.Today tag routes and frontend scripts
+      - name: Inspect Author.Today v2 tag response
         run: |
           python - <<'PY'
-          import re
+          import json
           import requests
-          from bs4 import BeautifulSoup
-          from urllib.parse import urljoin
 
           s = requests.Session()
-          s.headers.update({"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0 Safari/537.36", "Accept-Language": "ru,en;q=0.9"})
-          paths = [
-              "/work/tag/система",
-              "/work/tag/сист",
-              "/work/tags",
-              "/work/tag",
-              "/work/553566",
-              "/work/553566/edit",
-          ]
-          for path in paths:
-              try:
-                  r = s.get(urljoin("https://author.today", path), timeout=25)
-                  soup = BeautifulSoup(r.text, "html.parser")
-                  print("ROUTE", path, r.status_code, r.url, soup.title.get_text(" ", strip=True) if soup.title else "")
-                  print("  scripts:", [x.get("src") for x in soup.select("script[src]")][:15])
-                  print("  tag links:", [(a.get_text(" ", strip=True), a.get("href")) for a in soup.select('a[href*="/work/tag/"]')[:5]])
-              except Exception as e:
-                  print("ROUTE_ERROR", path, repr(e))
-
-          page = s.get("https://author.today/work/553566", timeout=25).text
-          soup = BeautifulSoup(page, "html.parser")
-          scripts = []
-          for node in soup.select("script[src]"):
-              src = urljoin("https://author.today", node.get("src", ""))
-              if src.endswith(".js") or ".js?" in src or "/dist/js/" in src or "/_nuxt/" in src:
-                  scripts.append(src)
-          print("JS_FILES", len(scripts), scripts)
-          patterns = [
-              re.compile(r"autocomplete|tag(s)?Suggest|suggest(Tag)?|/work/tag", re.I),
-              re.compile(r"tag.{0,80}(search|suggest|autocomplete|api)|(?:search|suggest|autocomplete|api).{0,80}tag", re.I),
-          ]
-          shown = 0
-          for src in scripts:
-              try:
-                  r = s.get(src, timeout=20)
-                  body = r.text
-                  matches = []
-                  for pattern in patterns:
-                      matches.extend(pattern.finditer(body))
-                  if not matches:
-                      continue
-                  print("JS_MATCH_FILE", src, "status", r.status_code, "bytes", len(body), "matches", len(matches))
-                  for match in matches[:12]:
-                      start = max(0, match.start()-220)
-                      end = min(len(body), match.end()+360)
-                      print("  MATCH", re.sub(r"\\s+", " ", body[start:end])[:650])
-                  shown += 1
-                  if shown >= 12:
-                      break
-              except Exception as e:
-                  print("JS_ERROR", src, repr(e))
-
-          edit_response = s.get("https://author.today/work/553566/edit", timeout=25)
-          edit_soup = BeautifulSoup(edit_response.text, "html.parser")
-          edit_scripts = [urljoin("https://author.today", n.get("src", "")) for n in edit_soup.select("script[src]")]
-          print("EDIT_PAGE", edit_response.status_code, len(edit_response.text), "SCRIPT_URLS", edit_scripts)
-          for src in edit_scripts:
-              try:
-                  response = s.get(src, timeout=25)
-                  body = response.text
-                  print("EDIT_JS", src, response.status_code, len(body))
-                  for pattern in [r"tag", r"tags", r"autocomplete", r"suggest", r"v1/[^\\\"']+" ]:
-                      matches = list(re.finditer(pattern, body, re.I))
-                      print(" PATTERN", pattern, "COUNT", len(matches))
-                      for match in matches[:10]:
-                          start = max(0, match.start()-180)
-                          end = min(len(body), match.end()+260)
-                          snippet = re.sub(r"\\s+", " ", body[start:end])
-                          if re.search(r"(search|suggest|auto|query|tag|api)", snippet, re.I):
-                              print("  SNIP", snippet[:500])
-              except Exception as exc:
-                  print("EDIT_JS_ERROR", src, repr(exc))
-
-          preload_urls = [urljoin("https://author.today", n.get("href", "")) for n in edit_soup.select('link[rel="modulepreload"][href]')]
-          print("MODULE_PRELOADS", len(preload_urls), preload_urls)
-          url_list = list(dict.fromkeys(preload_urls + edit_scripts))
-          interesting = [
-              "tagSearch", "searchTags", "searchedTags", "tagAutocomplete",
-              "tagId", "tagIds", "tagList", "getTags", "tags/search",
-              "/tags", "api/tags", "/tag", "TagSelect", "SelectTag",
-              "tag_type", "tag-type", "tagName", "tagNames", "tagDto",
-          ]
-          for src in url_list:
-              if "/_nuxt/" not in src:
-                  continue
-              try:
-                  response = s.get(src, timeout=18)
-                  body = response.text
-                  found = []
-                  for term in interesting:
-                      for match in list(re.finditer(re.escape(term), body, re.I))[:5]:
-                          start = max(0, match.start()-180)
-                          end = min(len(body), match.end()+260)
-                          snippet = re.sub(r"\\s+", " ", body[start:end])
-                          if not re.search(r"(meta|html|templateParams|tagPriority|tagPosition)", snippet, re.I):
-                              found.append((term, snippet[:600]))
-                  if found:
-                      print("NUXT_TAG_MODULE", src, response.status_code, len(body), "MATCHES", len(found))
-                      for term, snippet in found[:30]:
-                          print("  TAG_SNIP", term, snippet)
-                  paths = re.findall(r"""['"]((?:https?://[^'"]+)?/[^'"]+)['"]""", body)
-                  tag_paths = sorted(set(path for path in paths if re.search(r"tag", path, re.I)))
-                  if tag_paths:
-                      print("NUXT_TAG_PATHS", src, tag_paths[:60])
-              except Exception as exc:
-                  print("NUXT_CHUNK_ERROR", src, repr(exc))
-          from advanced_search import AuthorTodayClient, parse_result_cards
-          print("TAG FILTER ENDPOINT PROBE")
-          client = AuthorTodayClient(delay=0.0)
-          try:
-              for path in [
-                  "/search?tags=система",
-                  "/search?tags=сист",
-                  "/search?q=&tags=система",
-                  "/work/tag/система",
-                  "/work/tag/система?sorting=recent",
-                  "/work/tag/система?page=1",
-                  "/work/genre/all/ebook",
-              ]:
-                  try:
-                      html = client.get(path)
-                      sp = BeautifulSoup(html, "html.parser")
-                      cards = parse_result_cards(html)
-                      print("TAG_PROBE", path, "TITLE", sp.title.get_text(" ", strip=True) if sp.title else "", "CARDS", len(cards), "IDS", list(cards)[:5])
-                      for work_id, card in list(cards.items())[:2]:
-                          info = client.get_work_detail(work_id, card.get("kind", "work"), refresh_if_no_tags=True)
-                          print("  CARD_TAGS", work_id, info.title, info.tags)
-                  except Exception as e:
-                      print("TAG_PROBE_ERROR", path, repr(e))
-          finally:
-              client.close()
-
-          print("AUTHOR TODAY V2 TAGS API PROBE")
-          bundle_url = "https://author.today/_nuxt/BmH58EDp.js"
-          bundle = s.get(bundle_url, timeout=25).text
-          for term in ["getWorksTags", "getGenres", "getWorkSettings"]:
-              pos = bundle.find(term)
-              print("API_METHOD", term, re.sub(r"\\s+", " ", bundle[max(0,pos-220):pos+400]) if pos >= 0 else "not found")
-
-          for host in ["https://author.today", "https://api.author.today"]:
-              for suffix in [
-                  "/v2/work/tags",
-                  "/v2/work/tags?q=сист",
-                  "/v2/work/tags?query=сист",
-                  "/v2/work/tags?search=сист",
-                  "/v2/work/tags?term=сист",
-                  "/v2/work/tags?text=сист",
-              ]:
-                  url = host + suffix
-                  try:
-                      response = s.get(url, headers={"Referer": "https://author.today/work/553566", "Accept": "application/json, text/plain, */*"}, timeout=20)
-                      print("V2_TAGS", url, "STATUS", response.status_code, "FINAL", response.url, "TYPE", response.headers.get("content-type"), "LEN", len(response.content))
-                      try:
-                          payload = response.json()
-                          if isinstance(payload, dict):
-                              print("  KEYS", list(payload)[:30])
-                              for key, value in payload.items():
-                                  if isinstance(value, list):
-                                      print("  LIST", key, "LEN", len(value), "SAMPLE", json.dumps(value[:3], ensure_ascii=False)[:1600])
-                                  elif isinstance(value, (str, int, float, bool)) or value is None:
-                                      print("  VALUE", key, repr(value)[:250])
-                          elif isinstance(payload, list):
-                              print("  LIST", "ROOT", "LEN", len(payload), "SAMPLE", json.dumps(payload[:5], ensure_ascii=False)[:1600])
-                          else:
-                              print("  JSON", repr(payload)[:1000])
-                      except Exception:
-                          print("  BODY", response.text[:1000].replace("\\n", " "))
-                  except Exception as exc:
-                      print("V2_TAGS_ERROR", url, repr(exc))
-
-          print("AUTHOR TODAY GUEST TOKEN TAGS API PROBE")
-          for suffix in [
-              "/v2/work/tags",
-              "/v2/work/tags?q=сист",
-              "/v2/work/tags?query=сист",
-              "/v2/work/tags?search=сист",
-              "/v2/work/tags?term=сист",
-              "/v2/work/tags?text=сист",
-              "/v2/work/genres",
-              "/v1/catalog/search?page=1&ps=10&genre=all&sorting=popular&form=any&state=any&series=any&access=any&dnl=any&promo=hide&upd=-1&pub=-1&length=any&fnd=false&tag=система",
-          ]:
-              url = "https://api.author.today" + suffix
-              try:
-                  response = s.get(url, headers={
-                      "Referer": "https://author.today/work/553566",
-                      "Accept": "application/json, text/plain, */*",
-                      "Authorization": "Bearer guest",
-                  }, timeout=20)
-                  print("GUEST_API", suffix, "STATUS", response.status_code, "TYPE", response.headers.get("content-type"), "LEN", len(response.content))
-                  try:
-                      payload = response.json()
-                      if isinstance(payload, dict):
-                          print("  KEYS", list(payload)[:30])
-                          for key, value in payload.items():
-                              if isinstance(value, list):
-                                  print("  LIST", key, "LEN", len(value), "SAMPLE", json.dumps(value[:5], ensure_ascii=False)[:2400])
-                              elif isinstance(value, (str, int, float, bool)) or value is None:
-                                  print("  VALUE", key, repr(value)[:300])
-                      elif isinstance(payload, list):
-                          print("  ROOT_LIST", len(payload), json.dumps(payload[:10], ensure_ascii=False)[:2400])
+          s.headers.update({
+              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0 Safari/537.36",
+              "Accept-Language": "ru,en;q=0.9",
+          })
+          for query in ["сист", "система", "фентези", "попадан"]:
+              response = s.get(
+                  "https://api.author.today/v2/work/tags",
+                  params={"query": query},
+                  headers={"Authorization": "Bearer guest", "Accept": "application/json"},
+                  timeout=20,
+              )
+              print("QUERY", query, "STATUS", response.status_code, "LENGTH", len(response.content))
+              payload = response.json()
+              data = payload.get("data")
+              print("ROOT", json.dumps({k:v for k,v in payload.items() if k != "data"}, ensure_ascii=False))
+              print("DATA_TYPE", type(data).__name__)
+              if isinstance(data, dict):
+                  print("DATA_KEYS", list(data))
+                  for key, value in data.items():
+                      if isinstance(value, list):
+                          print("DATA_LIST", key, "LEN", len(value), "SAMPLE", json.dumps(value[:15], ensure_ascii=False))
                       else:
-                          print("  JSON", repr(payload)[:1000])
-                  except Exception:
-                      print("  BODY", response.text[:800].replace("\\n", " "))
-              except Exception as exc:
-                  print("GUEST_API_ERROR", suffix, repr(exc))
+                          print("DATA_VALUE", key, repr(value)[:500])
+              elif isinstance(data, list):
+                  print("DATA_LIST ROOT", len(data), json.dumps(data[:20], ensure_ascii=False))
+              else:
+                  print("DATA", repr(data)[:2000])
           PY
