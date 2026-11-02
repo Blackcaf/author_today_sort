@@ -1,87 +1,40 @@
-name: Author.Today autocomplete probe
+name: Author.Today autocomplete smoke test
 
 on:
   pull_request:
     branches: ["master"]
 
 jobs:
-  probe:
+  smoke-test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install probe dependencies
-        run: pip install requests beautifulsoup4
-      - name: Probe public Author.Today endpoints
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Test public Author.Today autocomplete sources
         run: |
           python - <<'PY'
-          import json
-          import requests
-          from bs4 import BeautifulSoup
+          from webapp import _parse_genre_catalog, genres, tag_suggestions
+          from advanced_search import AuthorTodayClient
 
-          session = requests.Session()
-          session.headers.update({
-              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0 Safari/537.36",
-              "Accept-Language": "ru,en;q=0.9",
-              "Accept": "text/html,application/json;q=0.9,*/*;q=0.8",
-          })
+          genre_result = genres()
+          genre_names = {item["name"].casefold() for item in genre_result["genres"]}
+          print("Genre count:", len(genre_names))
+          print("Fantasy genre found:", "фэнтези" in genre_names)
+          assert "фэнтези" in genre_names
 
-          urls = [
-              "https://author.today/work/genres",
-              "https://author.today/search?q=система",
-              "https://author.today/search?category=works&q=система&view=list&field=any&sorting=relevance&format=any&page=1",
-              "https://author.today/work/553566",
-              "https://api.author.today/v1/work/553566/meta-info",
-              "https://api.author.today/v1/work/553566/details",
-              "https://api.author.today/v1/catalog/search?page=1&ps=8&genre=all&sorting=popular&form=any&state=any&series=any&access=any&dnl=any&promo=hide&upd=-1&pub=-1&length=any&fnd=false&rec=false&exc=false&disc=false",
-          ]
-          for url in urls:
-              print("\\n###", url)
-              try:
-                  response = session.get(url, timeout=25)
-                  print("status:", response.status_code, "final:", response.url)
-                  print("content-type:", response.headers.get("content-type"), "length:", len(response.content))
-                  if "json" in response.headers.get("content-type", ""):
-                      try:
-                          data = response.json()
-                          if isinstance(data, dict):
-                              print("json keys:", list(data)[:40])
-                              for key, value in data.items():
-                                  if isinstance(value, list):
-                                      print("list", key, "len", len(value))
-                                      if value:
-                                          print("first item:", json.dumps(value[0], ensure_ascii=False)[:1800])
-                          else:
-                              print("json:", json.dumps(data, ensure_ascii=False)[:1800])
-                      except Exception as exc:
-                          print("json parse:", repr(exc))
-                  elif "text/html" in response.headers.get("content-type", "") or response.text.lstrip().startswith("<"):
-                      soup = BeautifulSoup(response.text, "html.parser")
-                      links = soup.select('a[href*="/work/genre/"]')
-                      tag_links = soup.select('a[href*="/work/tag/"]')
-                      work_links = soup.select('a[href*="/work/"], a[href*="/audiobook/"]')
-                      print("title:", soup.title.get_text(" ", strip=True) if soup.title else None)
-                      print("genre links:", len(links), [(a.get_text(" ", strip=True), a.get("href")) for a in links[:5]])
-                      print("tag links:", len(tag_links), [(a.get_text(" ", strip=True), a.get("href")) for a in tag_links[:8]])
-                      print("work links:", len(work_links), [(a.get_text(" ", strip=True)[:60], a.get("href")) for a in work_links[:8]])
-                      print("html start:", response.text[:400].replace("\\n", " "))
-                  else:
-                      print("body:", response.text[:1200])
-              except Exception as exc:
-                  print("ERROR:", repr(exc))
-
-          from advanced_search import AuthorTodayClient, parse_result_cards
-          print("\\n### Existing project parser against Author.Today text search")
           client = AuthorTodayClient(delay=0.0)
           try:
-              html = client.get("/search?q=система")
-              cards = parse_result_cards(html)
-              print("parsed works:", len(cards), "first IDs:", list(cards)[:8])
-              for work_id, card in list(cards.items())[:3]:
-                  work = client.get_work_detail(work_id, card.get("kind", "work"))
-                  print("work:", work_id, "title:", work.title, "tags:", work.tags)
+              sample = client.get_work_detail("553566", refresh_if_no_tags=True)
+              print("Known work tags:", sample.tags)
+              assert "система" in {tag.casefold() for tag in sample.tags}
           finally:
               client.close()
+
+          suggestions = tag_suggestions("система")
+          print("Tag suggestions:", suggestions["tags"])
+          assert any(tag.casefold() == "система" for tag in suggestions["tags"])
           PY
