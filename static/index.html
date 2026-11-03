@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#101a1c">
   <meta name="description" content="Расширенный поиск произведений на Author.Today по жанрам, тегам и описанию.">
   <title>Author.Today Search — умный поиск книг</title>
-  <link rel="stylesheet" href="/static/styles.css">
-  <script src="/static/app.js" defer></script>
+  <link rel="stylesheet" href="/static/styles.css?v=20261103-groups">
+  <script src="/static/app.js?v=20261103-groups" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Перейти к поиску</a>
@@ -114,6 +114,14 @@
             <div class="field-heading">
               <span class="field-title">Учитывать при поиске</span>
             </div>
+            <label class="switch-row">
+              <span class="switch-copy">
+                <strong>Только завершённые произведения</strong>
+                <small>Без книг, которые ещё пишутся</small>
+              </span>
+              <input id="finished-only" type="checkbox" checked>
+              <span class="switch" aria-hidden="true"></span>
+            </label>
             <label class="switch-row">
               <span class="switch-copy">
                 <strong>Исключить мою библиотеку</strong>

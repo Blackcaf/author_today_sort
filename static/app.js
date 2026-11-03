@@ -3,7 +3,7 @@
 
   const PAGE_SIZE = 35;
   const state = {
-    tags: [[]], genres: [[]], genresCatalog: [], genresLoaded: false, genresLoadFailed: false,
+    tags: [], genres: [], genresCatalog: [], genresLoaded: false, genresLoadFailed: false,
     results: [], autocompleteId: 0,
     jobId: null, nextLog: 0, page: 1, toastTimer: null,
     pollTimer: null, logs: [], busy: false
@@ -18,6 +18,7 @@
   const cookieInput = byId("cookies-file");
   const cookieName = byId("cookie-file-name");
   const excludeLibrary = byId("exclude-library");
+  const finishedOnly = byId("finished-only");
   const cookieArea = byId("cookie-area");
   const formError = byId("form-error");
   const cookieError = byId("cookie-error");
@@ -49,7 +50,20 @@
     formError.hidden = !message;
   }
 
+  function emptyGroup() {
+    return { values: [] };
+  }
+
+  function normalizeGroup(group) {
+    if (group && Array.isArray(group.values)) return group;
+    const normalized = emptyGroup();
+    const rawValues = Array.isArray(group) ? group : [];
+    rawValues.forEach((value) => addToken(normalized, value));
+    return normalized;
+  }
+
   function addToken(group, rawValue) {
+    if (!group.values) group.values = [];
     const value = String(rawValue || "").replace(/\s+/g, " ").trim();
     if (!value) return;
     const exists = group.values.some((item) => item.localeCompare(value, "ru", { sensitivity: "base" }) === 0);
@@ -228,6 +242,7 @@
   }
 
   function createGroup(host, kind, group, index) {
+    if (!Array.isArray(group.values)) group.values = [];
     const wrapper = document.createElement("div");
     wrapper.className = "group-row";
 
@@ -305,13 +320,17 @@
 
   function renderGroups(kind) {
     const host = kind === "tags" ? tagsHost : genresHost;
+    if (!host) return;
+    state[kind] = (Array.isArray(state[kind]) ? state[kind] : []).map(normalizeGroup);
+    if (!state[kind].length) state[kind].push(emptyGroup());
     host.replaceChildren();
     state[kind].forEach((group, index) => createGroup(host, kind, group, index));
   }
 
   function addGroup(kind, values) {
-    const group = { values: [] };
+    const group = emptyGroup();
     (values || []).forEach((value) => addToken(group, value));
+    if (!Array.isArray(state[kind])) state[kind] = [];
     state[kind].push(group);
     renderGroups(kind);
     const input = state[kind][state[kind].length - 1].input;
@@ -341,10 +360,10 @@
   function loadGroupsFromText(kind, value) {
     const lines = String(value || "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
     if (!lines.length) {
-      state[kind] = [{ values: [] }];
+      state[kind] = [emptyGroup()];
     } else {
       state[kind] = lines.map((line) => {
-        const group = { values: [] };
+        const group = emptyGroup();
         line.split(",").forEach((part) => addToken(group, part));
         return group;
       });
@@ -360,7 +379,7 @@
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.detail || "Не удалось получить список жанров.");
       if (!Array.isArray(payload.genres) || payload.genres.length === 0) {
-        throw new Error("Author.Today вернул пустой каталог жанров.");
+        throw new Error("Каталог жанров пуст. Проверь файл static/genres.json.");
       }
       state.genresCatalog = payload.genres.filter((genre) => genre && genre.name);
       state.genresLoadFailed = false;
@@ -613,6 +632,7 @@
     formData.append("description", byId("description").value.trim());
     formData.append("exclude_library", String(excludeLibrary.checked));
     formData.append("collapse_cycles", String(byId("collapse-cycles").checked));
+    formData.append("only_finished", String(finishedOnly.checked));
     formData.append("max_pages", byId("max-pages").value || "200");
     formData.append("delay", byId("delay").value || "0.3");
     if (cookieInput.files[0]) formData.append("cookies", cookieInput.files[0]);
@@ -723,8 +743,12 @@
   if (params.has("genres")) loadGroupsFromText("genres", params.get("genres"));
   if (params.has("description")) byId("description").value = params.get("description");
 
-  renderGroups("tags");
-  renderGroups("genres");
+  try {
+    renderGroups("tags");
+    renderGroups("genres");
+  } catch (error) {
+    console.error("Не удалось отрисовать группы фильтров", error);
+  }
   updateCookieVisibility();
   loadGenres();
 })();

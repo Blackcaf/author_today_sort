@@ -121,6 +121,7 @@ h2 { font: 700 20px/1.25 Inter, ui-sans-serif, sans-serif; letter-spacing: -.035
 .group-name { font-size: 9px; color: #80948a; letter-spacing: .09em; font-weight: 700; text-transform: uppercase; }
 .remove-group { border: 0; color: #74847c; background: transparent; cursor: pointer; padding: 2px 5px; font-size: 14px; border-radius: 5px; }
 .remove-group:hover { color: var(--danger); background: rgba(232, 161, 154, .08); }
+.remove-group:disabled { opacity: .35; cursor: default; pointer-events: none; }
 .group-entry-line { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-height: 28px; }
 .group-chip { border: 1px solid rgba(176, 208, 159, .2); border-radius: 6px; background: rgba(157, 197, 136, .12); color: #c7dfb5; padding: 4px 6px 4px 8px; display: inline-flex; align-items: center; gap: 6px; font-size: 10px; max-width: 100%; overflow-wrap: anywhere; }
 .group-chip button { background: none; border: 0; color: #9eb693; padding: 0; line-height: 1; cursor: pointer; font-size: 13px; }
@@ -344,6 +345,7 @@ h2 { font: 700 20px/1.25 Inter, ui-sans-serif, sans-serif; letter-spacing: -.035
   background: #172322;
   box-shadow: 0 14px 32px rgba(0, 0, 0, .38);
 }
+.autocomplete-list[hidden] { display: none !important; }
 .autocomplete-option {
   display: block;
   width: 100%;

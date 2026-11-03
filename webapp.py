@@ -14,7 +14,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from bs4 import BeautifulSoup
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -31,6 +31,16 @@ app = FastAPI(
     redoc_url=None,
 )
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+
+@app.middleware("http")
+async def disable_local_caching(request: Request, call_next):
+    """Keep the locally served UI fresh after code updates."""
+    response = await call_next(request)
+    path = request.url.path
+    if path == "/" or path.startswith("/static/"):
+        response.headers["Cache-Control"] = "no-store, max-age=0"
+    return response
 
 _jobs: dict[str, dict[str, Any]] = {}
 _jobs_lock = threading.Lock()
@@ -76,6 +86,37 @@ def _parse_genre_catalog(page_html: str) -> list[dict[str, str]]:
             continue
         items[slug] = {"name": name, "slug": slug}
     return sorted(items.values(), key=lambda item: item["name"].casefold())
+
+
+def _parse_genre_payload(payload: Any) -> list[dict[str, str]]:
+    """Validate and normalize the locally bundled Author.Today genre catalog."""
+    if not isinstance(payload, dict) or not isinstance(payload.get("genres"), list):
+        raise ValueError("В локальном каталоге отсутствует список жанров.")
+
+    items: dict[str, dict[str, str]] = {}
+    for item in payload["genres"]:
+        if not isinstance(item, dict):
+            continue
+        name = " ".join(str(item.get("name", "")).split())
+        slug = str(item.get("slug", "")).strip()
+        if not name or not slug:
+            continue
+        items[slug] = {"name": name, "slug": slug}
+
+    if not items:
+        raise ValueError("Локальный каталог жанров пуст.")
+    return sorted(items.values(), key=lambda item: item["name"].casefold())
+
+
+@lru_cache(maxsize=1)
+def _load_local_genre_catalog() -> list[dict[str, str]]:
+    """Load the bundled genre catalog once per server process."""
+    catalog_path = STATIC_DIR / "genres.json"
+    try:
+        payload = json.loads(catalog_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise RuntimeError(f"Не удалось прочитать локальный каталог жанров: {exc}") from exc
+    return _parse_genre_payload(payload)
 
 
 def _parse_tag_catalog(payload: Any) -> list[str]:
@@ -135,18 +176,27 @@ def _suggest_tag_names(query: str, catalog: list[str], limit: int = 12) -> list[
 
 @app.get("/api/genres")
 def genres() -> dict[str, Any]:
-    """Return the current public genre directory for autocomplete."""
-    client = AuthorTodayClient(delay=0.0)
+    """Return the bundled genre directory, with a live fallback if it is missing."""
     try:
-        page_html = client.get("/work/genres")
-        catalog = _parse_genre_catalog(page_html)
-        if not catalog:
-            raise RuntimeError("Каталог жанров вернул пустой список.")
-        return {"genres": catalog}
-    except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Не удалось загрузить жанры Author.Today: {exc}") from exc
-    finally:
-        client.close()
+        return {"genres": _load_local_genre_catalog(), "source": "local_catalog"}
+    except Exception as local_exc:
+        client = AuthorTodayClient(delay=0.0)
+        try:
+            page_html = client.get("/work/genres")
+            catalog = _parse_genre_catalog(page_html)
+            if not catalog:
+                raise RuntimeError("Каталог жанров вернул пустой список.")
+            return {"genres": catalog, "source": "author_today"}
+        except Exception as exc:
+            raise HTTPException(
+                status_code=502,
+                detail=(
+                    "Не удалось загрузить жанры Author.Today: "
+                    f"{exc}. Локальный каталог: {local_exc}"
+                ),
+            ) from exc
+        finally:
+            client.close()
 
 
 @app.get("/api/tag-suggestions")
@@ -198,6 +248,7 @@ def _run_job(
             collapse_cycles=params["collapse_cycles"],
             max_pages=params["max_pages"],
             delay=params["delay"],
+            only_finished=params["only_finished"],
             log=log,
         )
         serializable = []
@@ -235,6 +286,7 @@ async def start_search(
     description: str = Form(default=""),
     exclude_library: bool = Form(default=True),
     collapse_cycles: bool = Form(default=True),
+    only_finished: bool = Form(default=True),
     max_pages: int = Form(default=200),
     delay: float = Form(default=0.3),
     cookies: UploadFile | None = File(default=None),
@@ -281,6 +333,7 @@ async def start_search(
         "description": description,
         "exclude_library": exclude_library,
         "collapse_cycles": collapse_cycles,
+        "only_finished": only_finished,
         "max_pages": max_pages,
         "delay": delay,
     }

@@ -25,11 +25,34 @@ from bs4 import BeautifulSoup
 
 BASE = "https://author.today"
 CACHE_PATH = Path(__file__).with_name("author_today_cache.sqlite3")
+LOCAL_GENRES_PATH = Path(__file__).with_name("static") / "genres.json"
 CACHE_TTL_SECONDS = 7 * 24 * 60 * 60
 
 
 def normalize(value: str) -> str:
     return re.sub(r"\s+", " ", value or "").strip().casefold()
+
+
+def load_local_genres() -> dict[str, str]:
+    """Return the bundled genre catalog as {normalized name: slug}."""
+    try:
+        payload = json.loads(LOCAL_GENRES_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+    items = payload.get("genres") if isinstance(payload, dict) else None
+    if not isinstance(items, list):
+        return {}
+
+    catalog: dict[str, str] = {}
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name", "")).strip()
+        slug = str(item.get("slug", "")).strip()
+        if name and slug:
+            catalog[normalize(name)] = slug
+    return catalog
 
 
 def split_groups(value: str) -> list[list[str]]:
@@ -84,7 +107,7 @@ def parse_result_cards(page_html: str) -> dict[str, dict[str, str]]:
         work_id, kind = parsed
         title_node = card.select_one(".book-title a, .bookcard-title a, h4.bookcard-title a")
         title = title_node.get_text(" ", strip=True) if title_node else anchor.get_text(" ", strip=True)
-        author_node = card.select_one(".book-authors a, .bookcard-authors a, h5.bookcard-authors a")
+        author_node = card.select_one(".book-authors a, .book-author a, .bookcard-authors a, h5.bookcard-authors a")
         author = author_node.get_text(" ", strip=True) if author_node else ""
         found.setdefault(work_id, {"id": work_id, "kind": kind, "title": title, "author": author})
 
@@ -262,25 +285,41 @@ class AuthorTodayClient:
         return result
 
     @staticmethod
-    def _search_url(tags: list[str], page: int) -> str:
+    def _search_url(tags: list[str], page: int, only_finished: bool = True) -> str:
         params: list[tuple[str, str]] = [
             ("category", "works"),
             ("q", ""),
             ("view", "list"),
             ("field", "any"),
-            ("sorting", "relevance"),
+            # "relevance" is no longer valid for the work search form. Unknown
+            # sorting values silently redirect to the global site search.
+            ("sorting", "popular"),
             ("format", "any"),
         ]
+        if only_finished:
+            params.append(("finished", "true"))
         params.extend(("tags", tag) for tag in tags)
         params.append(("page", str(page)))
         return f"{BASE}/search?{urlencode(params)}"
 
-    def collect_tag_group(self, tags: list[str], max_pages: int) -> set[str]:
+    @staticmethod
+    def _genre_url(genre_slug: str, page: int, only_finished: bool = True) -> str:
+        params: list[tuple[str, str]] = []
+        if only_finished:
+            params.append(("state", "finished"))
+        if page > 1:
+            params.append(("page", str(page)))
+        query = f"?{urlencode(params)}" if params else ""
+        return f"{BASE}/work/genre/{genre_slug}{query}"
+
+    def collect_tag_group(
+        self, tags: list[str], max_pages: int, only_finished: bool = True
+    ) -> set[str]:
         result: set[str] = set()
         label = " | ".join(tags)
         self.log(f"Теги (OR): {label}")
         for page in range(1, max_pages + 1):
-            html = self.get(self._search_url(tags, page))
+            html = self.get(self._search_url(tags, page, only_finished))
             cards = parse_result_cards(html)
             self.work_kinds.update({work_id: data.get("kind", "work") for work_id, data in cards.items()})
             before = len(result)
@@ -301,9 +340,16 @@ class AuthorTodayClient:
     def load_genres(self) -> dict[str, str]:
         if self.genre_catalog is not None:
             return self.genre_catalog
+
+        catalog = load_local_genres()
+        if catalog:
+            self.genre_catalog = catalog
+            self.log(f"Загружен локальный каталог жанров: {len(catalog)}")
+            return catalog
+
         html = self.get("/work/genres")
         soup = BeautifulSoup(html, "html.parser")
-        catalog: dict[str, str] = {}
+        catalog = {}
         for anchor in soup.select('a[href*="/work/genre/"]'):
             href = anchor.get("href", "")
             match = re.search(r"/work/genre/([^/?#]+)", href)
@@ -327,11 +373,12 @@ class AuthorTodayClient:
             "Проверь написание или обнови страницу каталога."
         )
 
-    def collect_genre(self, genre_slug: str, max_pages: int) -> set[str]:
+    def collect_genre(
+        self, genre_slug: str, max_pages: int, only_finished: bool = True
+    ) -> set[str]:
         result: set[str] = set()
-        base_path = f"/work/genre/{genre_slug}"
         for page in range(1, max_pages + 1):
-            path = base_path if page == 1 else f"{base_path}?page={page}"
+            path = self._genre_url(genre_slug, page, only_finished)
             html = self.get(path)
             cards = parse_result_cards(html)
             self.work_kinds.update({work_id: data.get("kind", "work") for work_id, data in cards.items()})
@@ -348,10 +395,15 @@ class AuthorTodayClient:
                 pass
         return result
 
-    def collect_all_works(self, max_pages: int) -> set[str]:
+    def collect_all_works(self, max_pages: int, only_finished: bool = True) -> set[str]:
         result: set[str] = set()
         for page in range(1, max_pages + 1):
-            path = "/work/genre" if page == 1 else f"/work/genre?page={page}"
+            params: list[tuple[str, str]] = []
+            if only_finished:
+                params.append(("state", "finished"))
+            if page > 1:
+                params.append(("page", str(page)))
+            path = "/work/genre" + (f"?{urlencode(params)}" if params else "")
             html = self.get(path)
             cards = parse_result_cards(html)
             self.work_kinds.update({work_id: data.get("kind", "work") for work_id, data in cards.items()})
@@ -532,11 +584,13 @@ def run_search(
     max_pages: int,
     delay: float,
     log: Callable[[str], None],
+    only_finished: bool = True,
 ) -> list[WorkInfo]:
     if not re.fullmatch(r"[A-Za-z0-9_-]+", username.strip()):
         raise ValueError("Укажи корректный логин-профиль Author.Today.")
     tag_groups = split_groups(tags_text)
     genre_groups = split_groups(genres_text)
+    log("Учитываются только завершённые произведения." if only_finished else "Учитываются завершённые и незавершённые произведения.")
 
     client = AuthorTodayClient(delay=delay, log=log)
     try:
@@ -564,7 +618,7 @@ def run_search(
         if tag_groups:
             for index, group in enumerate(tag_groups, start=1):
                 log(f"Группа тегов {index}/{len(tag_groups)}: {', '.join(group)}")
-                group_sets.append(client.collect_tag_group(group, max_pages))
+                group_sets.append(client.collect_tag_group(group, max_pages, only_finished))
 
         if genre_groups:
             catalog = client.load_genres()
@@ -573,13 +627,13 @@ def run_search(
                 union: set[str] = set()
                 for name in group:
                     slug = client.resolve_genre(name, catalog)
-                    union.update(client.collect_genre(slug, max_pages))
+                    union.update(client.collect_genre(slug, max_pages, only_finished))
                 log(f"  В группе жанров найдено уникальных ID: {len(union)}")
                 group_sets.append(union)
 
         if not group_sets:
             log("Фильтры тегов и жанров не заданы: использую общий каталог произведений.")
-            group_sets.append(client.collect_all_works(max_pages))
+            group_sets.append(client.collect_all_works(max_pages, only_finished))
 
         candidate_ids = intersect_groups(group_sets)
         log(f"После объединения всех групп (AND): {len(candidate_ids)} произведений.")
@@ -671,6 +725,7 @@ class AdvancedSearchApp:
         self.username = tk.StringVar(value="daniilmantus")
         self.cookies_file = tk.StringVar()
         self.description = tk.StringVar()
+        self.only_finished = tk.BooleanVar(value=True)
         self.exclude_library = tk.BooleanVar(value=True)
         self.collapse_cycles = tk.BooleanVar(value=True)
         self.max_pages = tk.StringVar(value="200")
@@ -720,9 +775,13 @@ class AdvancedSearchApp:
         options = ttk.Frame(outer)
         options.pack(fill="x", pady=8)
         ttk.Checkbutton(
+            options, text="Только завершённые произведения",
+            variable=self.only_finished,
+        ).pack(side="left")
+        ttk.Checkbutton(
             options, text="Исключать «Прочитано» и «Не интересно»",
             variable=self.exclude_library,
-        ).pack(side="left")
+        ).pack(side="left", padx=(18, 0))
         ttk.Checkbutton(
             options, text="Применять правило первой книги цикла",
             variable=self.collapse_cycles,
@@ -811,6 +870,7 @@ class AdvancedSearchApp:
             "tags_text": self.tags_text.get("1.0", "end").strip(),
             "genres_text": self.genres_text.get("1.0", "end").strip(),
             "description_query": self.description.get().strip(),
+            "only_finished": self.only_finished.get(),
             "exclude_library": self.exclude_library.get(),
             "collapse_cycles": self.collapse_cycles.get(),
             "max_pages": max_pages,

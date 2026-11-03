@@ -2,7 +2,9 @@ import unittest
 from unittest.mock import patch
 
 from webapp import (
+    _load_local_genre_catalog,
     _parse_genre_catalog,
+    _parse_genre_payload,
     _parse_tag_catalog,
     _suggest_tag_names,
     tag_suggestions,
@@ -26,6 +28,31 @@ class AutocompleteSourceTests(unittest.TestCase):
                 {"name": "Фэнтези", "slug": "fantasy"},
             ],
         )
+
+    def test_genre_payload_normalizes_and_sorts_local_catalog(self):
+        payload = {
+            "genres": [
+                {"name": "  Фэнтези ", "slug": "fantasy"},
+                {"name": "Боевик", "slug": "action"},
+                {"name": "", "slug": "broken"},
+                "invalid",
+            ]
+        }
+        self.assertEqual(
+            _parse_genre_payload(payload),
+            [
+                {"name": "Боевик", "slug": "action"},
+                {"name": "Фэнтези", "slug": "fantasy"},
+            ],
+        )
+
+    def test_bundled_genre_catalog_contains_all_site_genres(self):
+        catalog = _load_local_genre_catalog()
+        names = {genre["name"] for genre in catalog}
+        self.assertGreaterEqual(len(catalog), 70)
+        self.assertIn("Фэнтези", names)
+        self.assertIn("Попаданцы в магические миры", names)
+        self.assertIn("Эротический фанфик", names)
 
     def test_tag_catalog_preserves_yo_variants_and_removes_exact_duplicates(self):
         payload = {
@@ -80,6 +107,43 @@ class AutocompleteSourceTests(unittest.TestCase):
             result = tag_suggestions("темное")
 
         self.assertEqual(result["tags"], catalog)
+
+    def test_genres_endpoint_serves_bundled_catalog(self):
+        from fastapi.testclient import TestClient
+        from webapp import app
+
+        with TestClient(app) as client:
+            response = client.get("/api/genres")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        names = {genre["name"] for genre in payload["genres"]}
+        self.assertEqual(payload["source"], "local_catalog")
+        self.assertGreaterEqual(len(payload["genres"]), 70)
+        self.assertIn("Фэнтези", names)
+        self.assertIn("Попаданцы в магические миры", names)
+
+    def test_search_form_accepts_only_finished_flag(self):
+        from fastapi.testclient import TestClient
+        from webapp import app
+
+        with patch("webapp.threading.Thread") as worker:
+            with TestClient(app) as client:
+                response = client.post(
+                    "/api/search",
+                    data={
+                        "username": "test_user",
+                        "tags": "система",
+                        "exclude_library": "false",
+                        "only_finished": "false",
+                    },
+                )
+
+        self.assertEqual(response.status_code, 200)
+        job_args = worker.call_args.kwargs.get("args") or worker.call_args.args
+        params = job_args[2]
+        self.assertFalse(params["only_finished"])
+        self.assertFalse(params["exclude_library"])
 
 
 if __name__ == "__main__":

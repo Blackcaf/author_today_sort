@@ -1,10 +1,12 @@
 import unittest
+from urllib.parse import parse_qs, urlsplit
 
 from advanced_search import (
     AuthorTodayClient,
     WorkInfo,
     apply_cycle_rule,
     intersect_groups,
+    load_local_genres,
     parse_library_ids,
     split_groups,
 )
@@ -27,6 +29,37 @@ class SearchLogicTests(unittest.TestCase):
             '<div class="bookcard" id="work-456"></div>'
         )
         self.assertEqual(parse_library_ids(html), {"123", "456"})
+
+    def test_search_url_uses_valid_work_search_sorting(self):
+        url = AuthorTodayClient._search_url(["фэнтези", "магия"], 3, only_finished=True)
+        query = parse_qs(urlsplit(url).query, keep_blank_values=True)
+
+        self.assertEqual(query["category"], ["works"])
+        self.assertEqual(query["view"], ["list"])
+        self.assertEqual(query["sorting"], ["popular"])
+        self.assertEqual(query["finished"], ["true"])
+        self.assertEqual(query["tags"], ["фэнтези", "магия"])
+        self.assertEqual(query["page"], ["3"])
+
+    def test_search_url_omits_finished_filter_when_disabled(self):
+        url = AuthorTodayClient._search_url(["фэнтези"], 1, only_finished=False)
+        query = parse_qs(urlsplit(url).query, keep_blank_values=True)
+
+        self.assertNotIn("finished", query)
+
+    def test_genre_url_uses_finished_state_and_pagination(self):
+        url = AuthorTodayClient._genre_url("fantasy", 2, only_finished=True)
+        query = parse_qs(urlsplit(url).query)
+
+        self.assertEqual(urlsplit(url).path, "/work/genre/fantasy")
+        self.assertEqual(query["state"], ["finished"])
+        self.assertEqual(query["page"], ["2"])
+
+    def test_local_genre_catalog_is_bundled(self):
+        catalog = load_local_genres()
+        self.assertGreaterEqual(len(catalog), 70)
+        self.assertEqual(catalog["фэнтези"], "fantasy")
+        self.assertEqual(catalog["попаданцы в магические миры"], "popadantsy-v-magicheskie-miry")
 
     def test_cycle_rule_keeps_only_matching_first_part(self):
         works = [
