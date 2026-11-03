@@ -1,0 +1,291 @@
+{
+  "source": "Author.Today /work/genres",
+  "exported_at": "2026-11-03",
+  "count": 71,
+  "genres": [
+    {
+      "name": "Фантастика",
+      "slug": "sci-fi"
+    },
+    {
+      "name": "Фэнтези",
+      "slug": "fantasy"
+    },
+    {
+      "name": "Попаданцы",
+      "slug": "popadantsy"
+    },
+    {
+      "name": "Любовные романы",
+      "slug": "romance"
+    },
+    {
+      "name": "Альтернативная история",
+      "slug": "sf-history"
+    },
+    {
+      "name": "ЛитРПГ",
+      "slug": "litrpg"
+    },
+    {
+      "name": "Боевик",
+      "slug": "action"
+    },
+    {
+      "name": "Фанфик",
+      "slug": "fanfiction"
+    },
+    {
+      "name": "Детектив",
+      "slug": "detective"
+    },
+    {
+      "name": "Историческая проза",
+      "slug": "historical-fiction"
+    },
+    {
+      "name": "Подростковая проза",
+      "slug": "teen-prose"
+    },
+    {
+      "name": "Поэзия",
+      "slug": "poetry"
+    },
+    {
+      "name": "Приключения",
+      "slug": "adventure"
+    },
+    {
+      "name": "Современная проза",
+      "slug": "modern-prose"
+    },
+    {
+      "name": "Триллер",
+      "slug": "thriller"
+    },
+    {
+      "name": "Ужасы",
+      "slug": "horror"
+    },
+    {
+      "name": "Юмор",
+      "slug": "humor"
+    },
+    {
+      "name": "Романтическое фэнтези",
+      "slug": "romantic-fantasy"
+    },
+    {
+      "name": "Боевое фэнтези",
+      "slug": "fantasy-action"
+    },
+    {
+      "name": "Городское фэнтези",
+      "slug": "urban-fantasy"
+    },
+    {
+      "name": "Темное фэнтези",
+      "slug": "dark-fantasy"
+    },
+    {
+      "name": "Юмористическое фэнтези",
+      "slug": "ironical-fantasy"
+    },
+    {
+      "name": "Бояръ-Аниме",
+      "slug": "boyar-anime"
+    },
+    {
+      "name": "Героическое фэнтези",
+      "slug": "heroic-fantasy"
+    },
+    {
+      "name": "Эпическое фэнтези",
+      "slug": "epic-fantasy"
+    },
+    {
+      "name": "Историческое фэнтези",
+      "slug": "historical-fantasy"
+    },
+    {
+      "name": "Бытовое фэнтези",
+      "slug": "everyday-fantasy"
+    },
+    {
+      "name": "Магическая академия",
+      "slug": "magic-school"
+    },
+    {
+      "name": "Славянское фэнтези",
+      "slug": "slavic-fantasy"
+    },
+    {
+      "name": "Классическое фэнтези",
+      "slug": "classic-fantasy"
+    },
+    {
+      "name": "Уся",
+      "slug": "wuxia"
+    },
+    {
+      "name": "Технофэнтези",
+      "slug": "techno-fantasy"
+    },
+    {
+      "name": "Мистика",
+      "slug": "paranormal"
+    },
+    {
+      "name": "Русреал",
+      "slug": "rusreal"
+    },
+    {
+      "name": "Космическая фантастика",
+      "slug": "sf-space"
+    },
+    {
+      "name": "Боевая фантастика",
+      "slug": "sf-action"
+    },
+    {
+      "name": "Научная фантастика",
+      "slug": "science-fiction"
+    },
+    {
+      "name": "Социальная фантастика",
+      "slug": "sf-social"
+    },
+    {
+      "name": "Постапокалипсис",
+      "slug": "postapocalyptic"
+    },
+    {
+      "name": "Юмористическая фантастика",
+      "slug": "sf-humor"
+    },
+    {
+      "name": "Антиутопия",
+      "slug": "dystopia"
+    },
+    {
+      "name": "Киберпанк",
+      "slug": "cyberpunk"
+    },
+    {
+      "name": "Героическая фантастика",
+      "slug": "sf-heroic"
+    },
+    {
+      "name": "Стимпанк",
+      "slug": "steampunk"
+    },
+    {
+      "name": "Романтическая фантастика",
+      "slug": "sf-romantic"
+    },
+    {
+      "name": "Исторические приключения",
+      "slug": "historical-adventure"
+    },
+    {
+      "name": "Попаданцы в магические миры",
+      "slug": "popadantsy-v-magicheskie-miry"
+    },
+    {
+      "name": "Попаданцы во времени",
+      "slug": "popadantsy-vo-vremeni"
+    },
+    {
+      "name": "Назад в СССР",
+      "slug": "back-to-ussr"
+    },
+    {
+      "name": "Попаданцы в космос",
+      "slug": "popadantsy-v-kosmos"
+    },
+    {
+      "name": "Разное",
+      "slug": "other"
+    },
+    {
+      "name": "Сказка",
+      "slug": "fairy-tale"
+    },
+    {
+      "name": "Драма",
+      "slug": "drama"
+    },
+    {
+      "name": "Публицистика",
+      "slug": "publicism"
+    },
+    {
+      "name": "Детская литература",
+      "slug": "detskaya-literatura"
+    },
+    {
+      "name": "Документальная проза",
+      "slug": "non-fiction"
+    },
+    {
+      "name": "Бизнес-литература",
+      "slug": "biznes-literatura"
+    },
+    {
+      "name": "Фантастический детектив",
+      "slug": "detective-science-fiction"
+    },
+    {
+      "name": "Исторический детектив",
+      "slug": "historical-mystery"
+    },
+    {
+      "name": "Шпионский детектив",
+      "slug": "spy-mystery"
+    },
+    {
+      "name": "Магический детектив",
+      "slug": "magic-detective"
+    },
+    {
+      "name": "Дорама",
+      "slug": "dorama"
+    },
+    {
+      "name": "Современный любовный роман",
+      "slug": "contemporary-romance"
+    },
+    {
+      "name": "Короткий любовный роман",
+      "slug": "short-romance"
+    },
+    {
+      "name": "Исторический любовный роман",
+      "slug": "historical-romance"
+    },
+    {
+      "name": "РеалРПГ",
+      "slug": "realrpg"
+    },
+    {
+      "name": "Эротика",
+      "slug": "erotica"
+    },
+    {
+      "name": "Романтическая эротика",
+      "slug": "romantic-erotika"
+    },
+    {
+      "name": "Эротическое фэнтези",
+      "slug": "fantasy-erotika"
+    },
+    {
+      "name": "Эротическая фантастика",
+      "slug": "sf-erotika"
+    },
+    {
+      "name": "Эротический фанфик",
+      "slug": "fanfiction-erotika"
+    }
+  ]
+}
