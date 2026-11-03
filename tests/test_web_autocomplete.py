@@ -1,3 +1,4 @@
+import asyncio
 import unittest
 from unittest.mock import patch
 
@@ -7,6 +8,8 @@ from webapp import (
     _parse_genre_payload,
     _parse_tag_catalog,
     _suggest_tag_names,
+    genres,
+    start_search,
     tag_suggestions,
 )
 
@@ -109,39 +112,28 @@ class AutocompleteSourceTests(unittest.TestCase):
         self.assertEqual(result["tags"], catalog)
 
     def test_genres_endpoint_serves_bundled_catalog(self):
-        from fastapi.testclient import TestClient
-        from webapp import app
-
-        with TestClient(app) as client:
-            response = client.get("/api/genres")
-
-        self.assertEqual(response.status_code, 200)
-        payload = response.json()
+        payload = genres()
         names = {genre["name"] for genre in payload["genres"]}
+
         self.assertEqual(payload["source"], "local_catalog")
         self.assertEqual(len(payload["genres"]), 71)
         self.assertIn("Фэнтези", names)
         self.assertIn("Попаданцы в магические миры", names)
 
     def test_search_form_passes_finished_only_setting_to_worker(self):
-        from fastapi.testclient import TestClient
-        from webapp import app
-
-        for selected, expected in (("true", True), ("false", False)):
+        for selected, expected in ((True, True), (False, False)):
             with self.subTest(only_finished=selected):
                 with patch("webapp.threading.Thread") as worker:
-                    with TestClient(app) as client:
-                        response = client.post(
-                            "/api/search",
-                            data={
-                                "username": "test_user",
-                                "tags": "система",
-                                "exclude_library": "false",
-                                "only_finished": selected,
-                            },
+                    result = asyncio.run(
+                        start_search(
+                            username="test_user",
+                            tags="система",
+                            exclude_library=False,
+                            only_finished=selected,
                         )
+                    )
 
-                self.assertEqual(response.status_code, 200)
+                self.assertEqual(result["status"], "queued")
                 job_args = worker.call_args.kwargs.get("args") or worker.call_args.args
                 params = job_args[2]
                 self.assertEqual(params["only_finished"], expected)
