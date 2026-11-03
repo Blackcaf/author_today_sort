@@ -8,6 +8,8 @@ from webapp import (
     _parse_genre_payload,
     _parse_tag_catalog,
     _suggest_tag_names,
+    _jobs,
+    _jobs_lock,
     genres,
     start_search,
     tag_suggestions,
@@ -122,6 +124,8 @@ class AutocompleteSourceTests(unittest.TestCase):
 
     def test_search_form_passes_finished_only_setting_to_worker(self):
         for selected, expected in ((True, True), (False, False)):
+            with _jobs_lock:
+                _jobs.clear()
             with self.subTest(only_finished=selected):
                 with patch("webapp.threading.Thread") as worker:
                     result = asyncio.run(
