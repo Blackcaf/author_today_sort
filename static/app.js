@@ -3,7 +3,7 @@
 
   const PAGE_SIZE = 35;
   const state = {
-    tags: [], genres: [], genresCatalog: [], genresLoaded: false, genresLoadFailed: false,
+    tags: [emptyGroup()], genres: [emptyGroup()], genresCatalog: [], genresLoaded: false, genresLoadFailed: false,
     results: [], autocompleteId: 0,
     jobId: null, nextLog: 0, page: 1, toastTimer: null,
     pollTimer: null, logs: [], busy: false
@@ -13,6 +13,7 @@
   const byId = (id) => document.getElementById(id);
   const tagsHost = byId("tags-groups");
   const genresHost = byId("genres-groups");
+  const genreCatalogStatus = byId("genre-catalog-status");
   const form = byId("search-form");
   const submitButton = byId("submit-button");
   const cookieInput = byId("cookies-file");
@@ -257,12 +258,19 @@
     removeGroup.textContent = "×";
     removeGroup.setAttribute("aria-label", "Удалить группу " + (index + 1));
     removeGroup.title = "Удалить группу";
-    removeGroup.disabled = state[kind].length <= 1;
+    removeGroup.disabled = false;
+    removeGroup.setAttribute("aria-label", "Удалить или очистить группу " + (index + 1));
     removeGroup.addEventListener("click", () => {
-      if (state[kind].length <= 1) return;
       const position = state[kind].indexOf(group);
-      if (position >= 0) state[kind].splice(position, 1);
+      if (position < 0) return;
+      if (state[kind].length > 1) {
+        state[kind].splice(position, 1);
+      } else {
+        state[kind][position] = emptyGroup();
+      }
       renderGroups(kind);
+      const nextGroup = state[kind][Math.min(position, state[kind].length - 1)];
+      if (nextGroup && nextGroup.input) nextGroup.input.focus();
     });
     top.append(label, removeGroup);
 
@@ -328,13 +336,14 @@
   }
 
   function addGroup(kind, values) {
+    if (kind !== "tags" && kind !== "genres") return;
     const group = emptyGroup();
     (values || []).forEach((value) => addToken(group, value));
     if (!Array.isArray(state[kind])) state[kind] = [];
     state[kind].push(group);
     renderGroups(kind);
-    const input = state[kind][state[kind].length - 1].input;
-    if (input) input.focus();
+    const input = state[kind][state[kind].length - 1]?.input;
+    if (input) window.requestAnimationFrame(() => input.focus());
   }
 
   function flushPendingInputs() {
@@ -382,9 +391,15 @@
         throw new Error("Каталог жанров пуст. Проверь файл static/genres.json.");
       }
       state.genresCatalog = payload.genres.filter((genre) => genre && genre.name);
-      state.genresLoadFailed = false;
+      state.genresLoadFailed = state.genresCatalog.length === 0;
+      if (genreCatalogStatus) {
+        genreCatalogStatus.textContent = state.genresLoadFailed
+          ? "Каталог жанров пуст"
+          : state.genresCatalog.length + " жанров загружено локально";
+      }
     } catch (error) {
       state.genresLoadFailed = true;
+      if (genreCatalogStatus) genreCatalogStatus.textContent = "Не удалось загрузить жанры";
       showToast(error.message || "Не удалось загрузить каталог жанров Author.Today.");
     } finally {
       state.genresLoaded = true;
@@ -433,6 +448,7 @@
     const tags = serializeGroups("tags");
     const genres = serializeGroups("genres");
     const description = byId("description").value.trim();
+    params.set("only_finished", String(finishedOnly.checked));
     if (tags) params.set("tags", tags);
     if (genres) params.set("genres", genres);
     if (description) params.set("description", description);
@@ -697,8 +713,11 @@
     showToast("CSV-файл сохранён");
   }
 
-  document.querySelectorAll("[data-add-group]").forEach((button) => {
-    button.addEventListener("click", () => addGroup(button.dataset.addGroup));
+  document.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-add-group]");
+    if (!button) return;
+    event.preventDefault();
+    addGroup(button.dataset.addGroup);
   });
   form.addEventListener("submit", startSearch);
   excludeLibrary.addEventListener("change", updateCookieVisibility);
@@ -742,6 +761,9 @@
   if (params.has("tags")) loadGroupsFromText("tags", params.get("tags"));
   if (params.has("genres")) loadGroupsFromText("genres", params.get("genres"));
   if (params.has("description")) byId("description").value = params.get("description");
+  if (params.has("only_finished")) {
+    finishedOnly.checked = params.get("only_finished") !== "false";
+  }
 
   try {
     renderGroups("tags");

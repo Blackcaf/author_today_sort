@@ -55,6 +55,13 @@ class SearchLogicTests(unittest.TestCase):
         self.assertEqual(query["state"], ["finished"])
         self.assertEqual(query["page"], ["2"])
 
+    def test_genre_url_omits_finished_state_when_disabled(self):
+        url = AuthorTodayClient._genre_url("fantasy", 1, only_finished=False)
+        query = parse_qs(urlsplit(url).query)
+
+        self.assertEqual(urlsplit(url).path, "/work/genre/fantasy")
+        self.assertNotIn("state", query)
+
     def test_local_genre_catalog_is_bundled(self):
         catalog = load_local_genres()
         self.assertGreaterEqual(len(catalog), 70)

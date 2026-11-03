@@ -86,7 +86,7 @@
           <section class="filter-section">
             <div class="field-heading">
               <span class="field-title">Жанры</span>
-              <span class="field-hint">Выбор из каталога</span>
+              <span class="field-hint" id="genre-catalog-status">Загружаем локальный каталог…</span>
             </div>
             <div id="genres-groups" class="groups-list"></div>
             <button class="add-group" type="button" data-add-group="genres"><span>＋</span> Добавить группу жанров</button>
@@ -119,7 +119,7 @@
                 <strong>Только завершённые произведения</strong>
                 <small>Без книг, которые ещё пишутся</small>
               </span>
-              <input id="finished-only" type="checkbox" checked>
+              <input id="finished-only" name="only_finished" type="checkbox" checked>
               <span class="switch" aria-hidden="true"></span>
             </label>
             <label class="switch-row">

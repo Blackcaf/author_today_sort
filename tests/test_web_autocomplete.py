@@ -1,3 +1,4 @@
+import asyncio
 import unittest
 from unittest.mock import patch
 
@@ -7,6 +8,10 @@ from webapp import (
     _parse_genre_payload,
     _parse_tag_catalog,
     _suggest_tag_names,
+    _jobs,
+    _jobs_lock,
+    genres,
+    start_search,
     tag_suggestions,
 )
 
@@ -49,7 +54,7 @@ class AutocompleteSourceTests(unittest.TestCase):
     def test_bundled_genre_catalog_contains_all_site_genres(self):
         catalog = _load_local_genre_catalog()
         names = {genre["name"] for genre in catalog}
-        self.assertGreaterEqual(len(catalog), 70)
+        self.assertEqual(len(catalog), 71)
         self.assertIn("Фэнтези", names)
         self.assertIn("Попаданцы в магические миры", names)
         self.assertIn("Эротический фанфик", names)
@@ -109,41 +114,51 @@ class AutocompleteSourceTests(unittest.TestCase):
         self.assertEqual(result["tags"], catalog)
 
     def test_genres_endpoint_serves_bundled_catalog(self):
-        from fastapi.testclient import TestClient
-        from webapp import app
-
-        with TestClient(app) as client:
-            response = client.get("/api/genres")
-
-        self.assertEqual(response.status_code, 200)
-        payload = response.json()
+        payload = genres()
         names = {genre["name"] for genre in payload["genres"]}
+
         self.assertEqual(payload["source"], "local_catalog")
-        self.assertGreaterEqual(len(payload["genres"]), 70)
+        self.assertEqual(len(payload["genres"]), 71)
         self.assertIn("Фэнтези", names)
         self.assertIn("Попаданцы в магические миры", names)
 
-    def test_search_form_accepts_only_finished_flag(self):
-        from fastapi.testclient import TestClient
-        from webapp import app
+    def test_search_form_passes_finished_only_setting_to_worker(self):
+        for selected, expected in ((True, True), (False, False)):
+            with _jobs_lock:
+                _jobs.clear()
+            with self.subTest(only_finished=selected):
+                with patch("webapp.threading.Thread") as worker:
+                    result = asyncio.run(
+                        start_search(
+                            username="test_user",
+                            tags="система",
+                            description="",
+                            exclude_library=False,
+                            collapse_cycles=True,
+                            only_finished=selected,
+                            max_pages=200,
+                            delay=0.3,
+                            cookies=None,
+                        )
+                    )
 
-        with patch("webapp.threading.Thread") as worker:
-            with TestClient(app) as client:
-                response = client.post(
-                    "/api/search",
-                    data={
-                        "username": "test_user",
-                        "tags": "система",
-                        "exclude_library": "false",
-                        "only_finished": "false",
-                    },
-                )
+                self.assertEqual(result["status"], "queued")
+                job_args = worker.call_args.kwargs.get("args") or worker.call_args.args
+                params = job_args[2]
+                self.assertEqual(params["only_finished"], expected)
+                self.assertFalse(params["exclude_library"])
 
-        self.assertEqual(response.status_code, 200)
-        job_args = worker.call_args.kwargs.get("args") or worker.call_args.args
-        params = job_args[2]
-        self.assertFalse(params["only_finished"])
-        self.assertFalse(params["exclude_library"])
+    def test_frontend_initializes_filter_groups_and_serializes_completion_flag(self):
+        from pathlib import Path
+
+        root = Path(__file__).resolve().parents[1]
+        app_js = (root / "static" / "app.js").read_text(encoding="utf-8")
+        index_html = (root / "static" / "index.html").read_text(encoding="utf-8")
+
+        self.assertIn("tags: [emptyGroup()], genres: [emptyGroup()]", app_js)
+        self.assertIn('document.addEventListener("click"', app_js)
+        self.assertIn("formData.append(\"only_finished\", String(finishedOnly.checked))", app_js)
+        self.assertIn('id="finished-only" name="only_finished"', index_html)
 
 
 if __name__ == "__main__":
