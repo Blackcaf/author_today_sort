@@ -49,7 +49,7 @@ class AutocompleteSourceTests(unittest.TestCase):
     def test_bundled_genre_catalog_contains_all_site_genres(self):
         catalog = _load_local_genre_catalog()
         names = {genre["name"] for genre in catalog}
-        self.assertGreaterEqual(len(catalog), 70)
+        self.assertEqual(len(catalog), 71)
         self.assertIn("Фэнтези", names)
         self.assertIn("Попаданцы в магические миры", names)
         self.assertIn("Эротический фанфик", names)
@@ -119,7 +119,7 @@ class AutocompleteSourceTests(unittest.TestCase):
         payload = response.json()
         names = {genre["name"] for genre in payload["genres"]}
         self.assertEqual(payload["source"], "local_catalog")
-        self.assertGreaterEqual(len(payload["genres"]), 70)
+        self.assertEqual(len(payload["genres"]), 71)
         self.assertIn("Фэнтези", names)
         self.assertIn("Попаданцы в магические миры", names)
 
