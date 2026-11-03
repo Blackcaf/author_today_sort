@@ -123,27 +123,41 @@ class AutocompleteSourceTests(unittest.TestCase):
         self.assertIn("Фэнтези", names)
         self.assertIn("Попаданцы в магические миры", names)
 
-    def test_search_form_accepts_only_finished_flag(self):
+    def test_search_form_passes_finished_only_setting_to_worker(self):
         from fastapi.testclient import TestClient
         from webapp import app
 
-        with patch("webapp.threading.Thread") as worker:
-            with TestClient(app) as client:
-                response = client.post(
-                    "/api/search",
-                    data={
-                        "username": "test_user",
-                        "tags": "система",
-                        "exclude_library": "false",
-                        "only_finished": "false",
-                    },
-                )
+        for selected, expected in (("true", True), ("false", False)):
+            with self.subTest(only_finished=selected):
+                with patch("webapp.threading.Thread") as worker:
+                    with TestClient(app) as client:
+                        response = client.post(
+                            "/api/search",
+                            data={
+                                "username": "test_user",
+                                "tags": "система",
+                                "exclude_library": "false",
+                                "only_finished": selected,
+                            },
+                        )
 
-        self.assertEqual(response.status_code, 200)
-        job_args = worker.call_args.kwargs.get("args") or worker.call_args.args
-        params = job_args[2]
-        self.assertFalse(params["only_finished"])
-        self.assertFalse(params["exclude_library"])
+                self.assertEqual(response.status_code, 200)
+                job_args = worker.call_args.kwargs.get("args") or worker.call_args.args
+                params = job_args[2]
+                self.assertEqual(params["only_finished"], expected)
+                self.assertFalse(params["exclude_library"])
+
+    def test_frontend_initializes_filter_groups_and_serializes_completion_flag(self):
+        from pathlib import Path
+
+        root = Path(__file__).resolve().parents[1]
+        app_js = (root / "static" / "app.js").read_text(encoding="utf-8")
+        index_html = (root / "static" / "index.html").read_text(encoding="utf-8")
+
+        self.assertIn("tags: [emptyGroup()], genres: [emptyGroup()]", app_js)
+        self.assertIn('document.addEventListener("click"', app_js)
+        self.assertIn("formData.append(\"only_finished\", String(finishedOnly.checked))", app_js)
+        self.assertIn('id="finished-only" name="only_finished"', index_html)
 
 
 if __name__ == "__main__":
