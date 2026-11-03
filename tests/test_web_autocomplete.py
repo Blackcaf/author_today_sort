@@ -128,8 +128,13 @@ class AutocompleteSourceTests(unittest.TestCase):
                         start_search(
                             username="test_user",
                             tags="система",
+                            description="",
                             exclude_library=False,
+                            collapse_cycles=True,
                             only_finished=selected,
+                            max_pages=200,
+                            delay=0.3,
+                            cookies=None,
                         )
                     )
 
